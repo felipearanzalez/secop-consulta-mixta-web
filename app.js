@@ -86,7 +86,7 @@ class PublicData{
  }
  async schemaSafe(ds){try{return await this.schema(ds)}catch{return null}}
 }
-function record(platform,row,route,group=null){const ii=platform==='II';const state=txt(ii?row.estado_contrato:row.estado_del_proceso);return {key:rowKey(platform,row),platform,route,group:group?.name||'',groupCode:group?.code||'',contractor:txt(ii?row.proveedor_adjudicado:row.nom_razon_social_contratista),contractorId:txt(ii?row.documento_proveedor:row.identificacion_del_contratista),reference:txt(ii?row.referencia_del_contrato||row.id_contrato:row.numero_de_contrato||row.numero_de_constancia),entity:txt(row.nombre_entidad),state,start:txt(ii?row.fecha_de_inicio_del_contrato:row.fecha_ini_ejec_contrato),end:txt(ii?row.fecha_de_fin_del_contrato:row.fecha_fin_ejec_contrato),object:txt(ii?row.objeto_del_contrato||row.descripcion_del_proceso:row.objeto_del_contrato_a_la_firma||row.objeto_del_contrato_a_la||row.detalle_del_objeto_a_contratar),url:ii?contractIIUrl(row):contractIUrl(row),constancia:txt(row.numero_de_constancia),contractId:txt(row.id_contrato),value:txt(ii?row.valor_del_contrato:row.cuantia_contrato),stateMeaning:stateText(platform,state),source:platform==='II'?DS.contractsII:DS.contractsI,sourceRow:row}}
+function record(platform,row,route,group=null){const ii=platform==='II';const state=txt(ii?row.estado_contrato:row.estado_del_proceso);return {key:rowKey(platform,row),platform,route,group:group?.name||'',groupCode:group?.code||'',contractor:txt(ii?row.proveedor_adjudicado:row.nom_razon_social_contratista),contractorId:txt(ii?row.documento_proveedor:row.identificacion_del_contratista),reference:txt(ii?row.referencia_del_contrato||row.id_contrato:(valid(row.numero_de_contrato)?row.numero_de_contrato:row.numero_de_constancia)),entity:txt(row.nombre_entidad),state,start:txt(ii?row.fecha_de_inicio_del_contrato:row.fecha_ini_ejec_contrato),end:txt(ii?row.fecha_de_fin_del_contrato:row.fecha_fin_ejec_contrato),object:txt(ii?row.objeto_del_contrato||row.descripcion_del_proceso:row.objeto_del_contrato_a_la_firma||row.objeto_del_contrato_a_la||row.detalle_del_objeto_a_contratar),url:ii?contractIIUrl(row):contractIUrl(row),constancia:txt(row.numero_de_constancia),contractId:txt(row.id_contrato),value:txt(ii?row.valor_del_contrato:row.cuantia_contrato),stateMeaning:stateText(platform,state),source:platform==='II'?DS.contractsII:DS.contractsI,sourceRow:row}}
 function newGroup(row){return {code:txt(row.codigo_grupo),name:txt(row.nombre_grupo),nit:txt(row.nit_grupo),active:txt(row.esta_activo),type:txt(row.tipo_empresa_grupo),rep:txt(row.nombre_representante_legal_grupo),repId:txt(row.numero_doc_representante_legal_grupo),repType:txt(row.tipo_doc_representante_legal_grupo),created:txt(row.fecha_creacion_grupo),percent:txt(row.participacion),member:txt(row.nombre_participante),memberId:txt(row.nit_participante),source:'ceth-n4bn',composition:[]}}
 function candidateInfo(g,rule,anchor,score){return {code:g.code,name:g.name,nit:g.nit,rep:g.rep,repId:g.repId,active:g.active,type:g.type,rule,anchor,score:score??null,url:groupUrl(g.code),source:DS.groups,disclaimer:'No se ha demostrado pertenencia del proveedor consultado a esta estructura.'}}
 async function discover(id,opts={},transport){
@@ -105,7 +105,7 @@ async function discover(id,opts={},transport){
    for(const r of components){const g=groups.get(txt(r.codigo_grupo));if(g)g.composition.push(selectFields(r,['codigo_participante','nit_participante','nombre_participante','participacion']))}
   }
  }
- out.groups=[...groups.values()];
+ out.groups=[...groups.values()];if(opts.onProgress)opts.onProgress(out,'Grupos con pertenencia recuperada');
  // Direct contracts; keep group contractors out of the individual section.
  if(!onlyI){
   const filters=[['documento_proveedor',id.variants]];if(codes.length)filters.push(['codigo_proveedor',uniq(codes)]);
@@ -119,6 +119,7 @@ async function discover(id,opts={},transport){
    for(const r of contracts){const g=groups.get(txt(r.codigo_proveedor));if(g)out.plural.push(record('II',r,'Código exacto de grupo SECOP II',g));}
   }
  }
+ if(opts.onProgress)opts.onProgress(out,'Contratos electrónicos SECOP II recuperados');
  // SECOP I direct contractor and cross-platform by group NIT; inter-platform compositions require verification.
  if(!onlyII){
   for(const ds of [DS.contractsI,...(opts.historical?[DS.historic]:[])]){
@@ -140,6 +141,7 @@ async function discover(id,opts={},transport){
    }
   }
  }
+ if(opts.onProgress)opts.onProgress(out,'Contratos y procesos SECOP I recuperados; comprobando candidatos');
  // Candidate rules: group name, representative name or representative ID only. Never promote to membership.
  if(opts.similar!==false && groups.size){
   const ids=new Set(groups.keys());
@@ -173,11 +175,11 @@ async function discover(id,opts={},transport){
    for(const group of [...groups.values()].slice(0,12)){
     const seed=bestAnchor(group.name);if(!seed)continue;
     const raw=await data.contains(ds,'nom_razon_social_contratista',seed,'SECOP I: nombres de contratistas plurales similares',400);
-    for(const row of raw){const score=similarity(group.name,row.nom_razon_social_contratista,'group');if(score<.83)continue;
+    for(const row of raw){const score=similarity(group.name,row.nom_razon_social_contratista,'group');const signed=Boolean(/^\d{4}-\d{2}-\d{2}/.test(txt(row.fecha_de_firma_del_contrato)) || (valid(row.numero_de_contrato)&&(/^\d{4}$/.test(txt(row.anno_firma_contrato))||/CELEBRAD|TERMINAD|LIQUIDAD/.test(norm(row.estado_del_proceso))||/^\d{4}-\d{2}-\d{2}/.test(txt(row.fecha_ini_ejec_contrato)))));if(score<.83||!signed)continue;
      const k=ds+'|'+rowKey('I',row);if(candidateCodes.has(k))continue;candidateCodes.add(k);
      const idSame=valid(group.nit)&&idStringMatch(group.nit,row.identificacion_del_contratista);
      if(idSame){continue}
-     out.candidates.push({type:'i_group_similar',name:txt(row.nom_razon_social_contratista),group:group.name,rule:'Denominación similar a un grupo SECOP II del integrante; el NIT contractual no permite confirmar que sea el mismo grupo.',source:ds,url:contractIUrl(row),ref:txt(row.numero_de_contrato||row.numero_de_constancia),score});
+     out.candidates.push({type:'i_group_similar',name:txt(row.nom_razon_social_contratista),group:group.name,rule:'Denominación similar a un grupo SECOP II del integrante; el NIT contractual no permite confirmar que sea el mismo grupo.',source:ds,url:contractIUrl(row),ref:txt(row.numero_de_contrato||row.numero_de_constancia),score,contract:{...record('I',row,'Denominación parecida a un grupo conocido; sin atribución de participación'),source:ds}});
     }
    }
   }

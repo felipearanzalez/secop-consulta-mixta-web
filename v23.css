@@ -1,0 +1,18 @@
+/* Presentación agrupada y legible; no se enlaza al JSON como acción primaria. */
+.stage{margin:8px 0 16px;padding:12px 16px;background:#eaf1f3;border-left:4px solid #1d7483;color:#35596a;border-radius:6px;font-size:12px}
+.bucket-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:16px}
+.bucket{border:1px solid #dce6eb;border-radius:9px;background:#fbfcfd;min-width:0;overflow:hidden}
+.bucket>header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:#ecf3f6;border-bottom:1px solid #dce6eb;font-size:13px;color:#24485e}
+.bucket-count{padding:1px 8px;border-radius:14px;background:#d9e8ed;color:#244c5b;font-size:11px;font-variant-numeric:tabular-nums}
+.bucket .results{padding:12px;margin:0}
+.bucket .record{padding:13px 14px}
+.bucket .record h3{overflow-wrap:anywhere}
+.bucket .top{flex-wrap:wrap}
+.bucket .role{max-width:300px}
+.composition{margin:13px 0;padding:12px;border:1px solid #d7e5e9;background:#f6fafb;border-radius:8px}
+.composition summary{font-size:12px;font-weight:700;color:#175c73;cursor:pointer}
+.composition .members{margin-top:11px}
+.technical{margin-top:12px;border-top:1px solid #e3ebee;padding-top:8px;color:#73808a;font-size:12px}
+.technical summary{cursor:pointer;font-size:11px;color:#647989}
+.technical p{margin:8px 0}
+@media(max-width:900px){.bucket-grid{grid-template-columns:1fr}}
