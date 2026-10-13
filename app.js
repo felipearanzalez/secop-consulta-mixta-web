@@ -367,7 +367,7 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
   `<section class="panel" id="candidateSection"><div class="section-label">05 / Candidatos con contratos</div><h2>Contratos de estructuras parecidas, pendientes de comprobar</h2><p class="hint">Coincidencias de denominación plural o representante, vinculadas además a un contrato identificado. No se atribuyen al consultado sin acreditar composición.</p><div class="bucket-grid">${['I','II'].map(p=>`<section class="bucket"><header><strong>SECOP ${p} · Estructuras plurales</strong><span class="bucket-count" id="candidate${p}pluralCount">0</span></header><div id="candidate${p}plural" class="results"></div></section>`).join('')}</div></section>`;
   const trace=$('trace');trace.insertAdjacentHTML('beforebegin',newSections);
   $('trace').querySelector('.section-label').textContent='06 / Fuentes y cobertura';
-  document.querySelector('.mast-tag').textContent='Consulta pública · Versión 2.5 (Croma piloto)';
+  document.querySelector('.mast-tag').textContent='Consulta pública · Versión 2.6 (fuentes ampliadas)';
   document.querySelector('.mast h1').textContent='Contratos y participación por NIT';
   document.querySelector('.mast p').textContent='Primero ejecución, luego contratos, participaciones y candidatos respaldados por contratos. Información verificable en SECOP.';
  }
@@ -408,92 +408,187 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
   let id;try{id=C.identity($('identifier').value,$('kind').value)}catch(e){update(e.message,'problem');return}
   const btn=$('searchButton');btn.disabled=true;$('download').disabled=true;latest=null;
   update('Buscando registros individuales y plurales…');
-  window.SecopCroma?.start(id.raw, $('representativeId').value.trim(), $('platform').value);
+  // Sin consulta de Croma: las fuentes de SECOP se consultan independientemente.
+  window.SecopCoverage26?.reset();
   try{
    const p=new C.PublicData({update:stage=>update(stage+'…'),proxyKey:!$('indexOption').hidden?$('apiKey').value.trim():''});
    const core=await C.discover(id,{platform:$('platform').value,historical:$('historical').checked,similar:$('similar').checked,representativeId:$('representativeId').value.trim(),indexClient:$('indexOption').hidden||!$('useIndex').checked?null:indexClient,onProgress:(part,stage)=>{reportUI(summarize(part),part,stage);}},p);
    update('Verificando si los candidatos tienen realmente contratos asociados…');
    const accounts=$('platform').value==='i'?[]:await p.filter('qmzu-gj57',[['nit',id.variants]],'SECOP II: consulta de cuentas individuales',{limit:400});
+   const coverageTask=window.SecopExtended26?.lookup(id,core,accounts,p,{platform:$('platform').value})||Promise.resolve(null);
    const contractedCandidates=await collectContractCandidates(core,p);
    const report=summarize(core,accounts,contractedCandidates);
-   reportUI(report,core,'Consulta terminada. Los registros se presentan por nivel de comprobación.');
-   latest={identity:id,at:new Date().toISOString(),report,scope:'Consulta pública parcial. La ejecución de SECOP I por fechas es indicativa y no comprueba acta de inicio, suspensiones o liquidación. Los candidatos no acreditan pertenencia.'};
+   reportUI(report,core,'Contratos localizados. Verificando procesos y proponentes adicionales...');
+   latest={identity:id,at:new Date().toISOString(),report,extended:null,institutional_coverage:{findeter:'indexador piloto no conectado a sitio web',asosupro:'indexador piloto no conectado a sitio web',universidades:'pendiente',empresas_servicios_publicos:'pendiente',internacional:'pendiente'},scope:'Consulta pública parcial. La ejecución de SECOP I por fechas es indicativa y no comprueba acta de inicio, suspensiones o liquidación. Adjudicaciones y proponentes no equivalen a contratos celebrados.'};
+   update('Contratos publicados. Consultando adjudicaciones y proponentes en otras fuentes oficiales...');
+   try{
+    const coverage=await coverageTask;
+    if(coverage){latest.extended=coverage;window.SecopCoverage26?.render(coverage)}
+   }catch(err){p.tasks.push({source:'p6dx-8zbt / hgi6-6wh3',label:'Cobertura adicional SECOP II',status:'failed',count:0,error:String(err.message||err),truncated:false});}
+   reportUI(report,core,'Consulta finalizada. Consulte cobertura e incidencias; procesos sin contrato acreditado se informan por separado.');
    const issues=p.tasks.filter(t=>t.status!=='ok');
-   update(`Consulta finalizada: ${report.execution.length} con ejecución reportada o posible; ${report.contracts.length} otros contratos; ${report.candidates.length} candidatos con contrato. ${issues.length} consultas con incidencia.`,issues.length?'problem':'done');
+   update(`Consulta finalizada: ${report.execution.length} en ejecución reportada/posible; ${report.contracts.length} otros contratos; ${report.candidates.length} candidatos con contrato; ${latest.extended?.awards.length||0} adjudicaciones adicionales sin contrato electrónico asociado. ${issues.length} operaciones con incidencia.`,issues.length?'problem':'done');
    $('download').disabled=false;
   }catch(e){update('Consulta interrumpida: '+(e.message||e),'problem')}finally{btn.disabled=false}
  },true);
  // Captura exportación para que se descargue el nuevo informe, no el anterior.
- $('download').addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(!latest)return;latest.croma=window.SecopCroma?.getState()||null;const b=new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='secop_verificacion_v24_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)},true);
+ $('download').addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(!latest)return;const b=new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='secop_verificacion_v26_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)},true);
  // Utilidades para pruebas automatizadas.
  window.SecopPresentation={isContractI,isContractII,executionStatus,summarize,collectContractCandidates};
 })();
 
 
-/* SECOP Croma pilot; does not expose Croma's API key or assert group membership. */
-(function(){
+
+/* SECOP 2.6: coverage complement -- official awards and bidders are NOT signed contracts.
+   The base contract search remains authoritative for electronically published contracts. */
+(function(root){
 'use strict';
-if(typeof document==='undefined')return;
-const API='https://secop-croma-bridge.onrender.com';
-const q=id=>document.getElementById(id);
-const s=v=>v==null?'':String(v).trim();
-let configured=false, login='', current=null, last=null;
-function field(record,keys){for(const key of keys){const v=record?.[key];if(v!==undefined&&v!==null&&s(v)!=='')return s(v)}return ''}
-function platform(record){const p=field(record,['platform','source_platform']).toLowerCase();if(/secop.?i(i)?$/.test(p))return p.includes('ii')?'SECOP II':'SECOP I';if(p==='i')return 'SECOP I';if(p==='ii')return 'SECOP II';return p||'Plataforma no indicada'}
-function contractKey(record){return field(record,['id','contract_id','reference','contract_reference','process_id'])}
-function recordLink(record){
- const candidate=field(record,['url','contract_url','process_url','secop_url','source_url','link']);
- try{const u=new URL(candidate);if(u.protocol==='https:'&&/(^|\.)(datos\.gov\.co|contratos\.gov\.co|secop\.gov\.co|colombiacompra\.gov\.co)$/.test(u.hostname))return u.href}catch{}
- const code=field(record,['contract_id']);
- if(/^CO1\.PCCNTR\.\d+$/i.test(code))return 'https://community.secop.gov.co/Public/Tendering/ContractDetailView/Index?UniqueIdentifier='+encodeURIComponent(code);
- const c=field(record,['constancia','process_reference']);
- if(/^\d{2}-\d+-\d{5,}$/.test(c))return 'https://www.contratos.gov.co/consultas/detalleProceso.do?numConstancia='+encodeURIComponent(c);
- return '';
+const C=root.SecopWeb || (typeof require === 'function' ? require('./app.js') : null);
+if(!C) return;
+const PROCESS='p6dx-8zbt',BIDDERS='hgi6-6wh3';
+const norm=C.norm, valid=C.valid, txt=C.txt;
+const uniq=x=>[...new Set(x.filter(Boolean))];
+function chunks(xs,n=18){const all=[];for(let i=0;i<xs.length;i+=n)all.push(xs.slice(i,i+n));return all;}
+function groupLabel(text){return /\b(CONSORCIO|UNION TEMPORAL|U\s*T|PROMESA DE SOCIEDAD FUTURA)\b/.test(norm(text||''));}
+function awardReported(row){
+ const v=norm(row.adjudicado||'');
+ return ['SI','SÍ','TRUE','YES','1'].includes(v);
 }
-function div(cls,text){const node=document.createElement('div');node.className=cls;node.textContent=text;return node}
-function renderList(host,part,isRep){host.replaceChildren();if(!part){host.append(div('empty','Sin consulta por representante.'));return}
- const rows=part.records||[];
- host.append(div('context',`Croma: ${rows.length} registros recibidos de ${part.total_reported} publicados en la consulta · corte ${part.as_of||'no informado'}${part.truncated?' · RESULTADOS INCOMPLETOS (límite de páginas)':''}.`));
- if(!rows.length){host.append(div('empty','No se encontraron registros en las páginas consultadas. Esto no certifica que no existan otros contratos.'));return}
- for(const r of rows){const e=document.createElement('article');e.className='record';const name=field(r,['provider_name','contractor_name','supplier_name','contractor','provider','proveedor','contractor_legal_name'])||'Contratista no indicado';
- const ref=field(r,['contract_id','contract_reference','reference','id'])||'Referencia no informada';
- const title=document.createElement('h3');title.textContent=name;e.append(title);
- e.append(div('muted',`${platform(r)} · ${ref}${isRep?' · COINCIDENCIA POR REPRESENTANTE (NO PRUEBA PARTICIPACIÓN DEL NIT)':''}`));
- const entity=field(r,['entity_name','entity','contracting_entity','buyer_name','buyer']);if(entity)e.append(div('detail-row',`Entidad: ${entity}`));
- const status=field(r,['status','contract_status','state']);e.append(div('detail-row',`Estado: ${status||'No publicado'}`));
- const end=field(r,['end_date','contract_end_date','execution_end_date','fecha_fin']);const start=field(r,['start_date','contract_start_date','execution_start_date']);
- if(start||end)e.append(div('detail-row',`Fechas publicadas: ${start||'no informada'} / ${end||'no informada'}`));
- const value=field(r,['value_with_additions','contract_value','value']);if(value)e.append(div('detail-row',`Valor reportado: ${value}`));
- const link=recordLink(r);if(link){const a=document.createElement('a');a.textContent='Ver expediente o registro oficial SECOP ↗';a.href=link;a.target='_blank';a.rel='noopener noreferrer';e.append(a)}else e.append(div('muted','No hay enlace directo a expediente confirmado en este registro.'));
- host.append(e);
+function officialLink(value){const url=(value&&typeof value==='object')?value.url:value;return C.safeOfficialUrl(url)||'';}
+function evidenceLink(row,source){
+ const u=officialLink(row.urlproceso||row.url_proceso);if(u)return u;
+ const field=source===PROCESS?'id_del_proceso':'id_procedimiento';
+ const code=txt(row[field]);
+ if(!/^CO1\.[A-Z]+\.\d+$/.test(code))return '';
+ return `https://www.datos.gov.co/resource/${source}.json?${field}=${encodeURIComponent(code)}`;
+}
+function codesFromAccounts(id,accounts){return uniq(accounts.filter(x=>C.idMatch(id,x.nit)).map(x=>txt(x.codigo)).filter(valid));}
+function sourceStatus(rows,job){return {source:job,status:rows.length?'records':'none',count:rows.length};}
+function contractIndex(core){
+ const all=[...(core.individual||[]),...(core.plural||[])].filter(x=>x.platform==='II');
+ const map=new Map;
+ for(const contract of all){const r=contract.sourceRow||{};const key=txt(r.proceso_de_compra),code=txt(r.codigo_proveedor);
+  if(!key||!code||!/^CO1\.BDOS\.\d+$/.test(key))continue;
+  const k=key+'|'+code;if(!map.has(k))map.set(k,[]);map.get(k).push(contract);
  }
+ return map;
 }
-function render(data){last=data;const direct=q('cromaDirect'),rep=q('cromaRepresentative');if(!direct||!rep)return;
- renderList(direct,data.direct,false);renderList(rep,data.representative_candidates,true);
- const top=q('cromaStatus');top.textContent=`Contraste realizado. ${data.direct.count_returned} contratos por identificación, ${data.representative_candidates?.count_returned||0} por representante (no atribuibles al NIT). Fuente Croma; sin equiparar una coincidencia nominal con participación contractual.`;
+function affiliation(id,record,groups,individualCodes,{source}){
+ const code=txt(source===PROCESS?record.codigoproveedor:record.codigo_proveedor);
+ const memberNit=txt(source===PROCESS?record.nit_del_proveedor_adjudicado:record.nit_proveedor);
+ const supplier=txt(source===PROCESS?record.nombre_del_proveedor:record.proveedor);
+ if(code && groups.has(code))return {kind:'plural',route:'Código exacto de grupo con integrante registrado en SECOP II',group:groups.get(code),code,nit:memberNit};
+ if(C.idMatch(id,memberNit)){
+  if(groupLabel(supplier))return {kind:'uncertain',route:'NIT individual publicado para un posible grupo plural; falta composición',code,nit:memberNit};
+  return {kind:'individual',route:'Documento del proveedor adjudicado o proponente coincide con la identificación',code,nit:memberNit};
+ }
+ if(code && individualCodes.includes(code)){
+  if(groupLabel(supplier))return {kind:'uncertain',route:'Cuenta de proveedor asociada a denominación plural, no acreditada',code,nit:memberNit};
+  return {kind:'individual',route:'Código exacto de la cuenta individual SECOP II',code,nit:memberNit};
+ }
+ return null;
 }
-async function health(){const status=q('cromaStatus');try{const resp=await fetch(API+'/health',{cache:'no-store',signal:AbortSignal.timeout(9000)});if(!resp.ok)throw new Error('HTTP '+resp.status);
- const x=await resp.json();configured=x.configured===true;
- status.textContent=configured?'Croma disponible para contraste; registre la clave de acceso del buscador (no la API key de Croma).':'La conexión del servidor Croma está pendiente de activar con sus credenciales en Render. La consulta SECOP funciona normalmente.';
- if(configured){q('cromaAuthArea').hidden=false;q('cromaEnabled').disabled=false}
- }catch{status.textContent='El servicio complementario Croma aún no está disponible. La consulta SECOP funciona independientemente.'}
+async function readSource(p,ds,identity,individualCodes,groupCodes,which){
+ const out=[];
+ const docField=ds===PROCESS?'nit_del_proveedor_adjudicado':'nit_proveedor';
+ const codeField=ds===PROCESS?'codigoproveedor':'codigo_proveedor';
+ // Separate NIT and provider-code queries to avoid one large OR query on a national dataset.
+ out.push(...await p.filter(ds,[[docField,identity.variants]],`SECOP II: ${which} por NIT`,{limit:1200}));
+ const partitions=chunks(uniq([...individualCodes,...groupCodes]));
+ // Limit concurrency to protect Datos Abiertos and improve browser responsiveness.
+ for(let i=0;i<partitions.length;i+=3){
+  const batchResults=await Promise.all(partitions.slice(i,i+3).map(piece=>
+   p.filter(ds,[[codeField,piece]],`SECOP II: ${which} por códigos vinculados`,{limit:1000})));
+  for(const part of batchResults)out.push(...part);
+ }
+ return out;
 }
-async function start(nit,repId,platformChoice){
- if(!configured||!q('cromaEnabled')?.checked)return;
- const code=s(q('cromaAccess').value);const status=q('cromaStatus');
- if(code.length<20){status.textContent='Para activar Croma debe introducir la clave de acceso privada del buscador. No introduzca la clave API de Croma aquí.';return}
- const serial=Symbol();current=serial;status.textContent='Contrastando contratos con Croma sin interrumpir SECOP…';
- try{const rsp=await fetch(API+'/api/croma/search',{method:'POST',headers:{'Content-Type':'application/json','X-SECOP-Access':code},body:JSON.stringify({document:nit,representative_document:repId||undefined,platform:platformChoice==='i'?'secop_i':platformChoice==='ii'?'secop_ii':'any'}),signal:AbortSignal.timeout(95000),cache:'no-store'});
- const x=await rsp.json();if(current!==serial)return;if(!rsp.ok)throw Error(x.error||'Error de consulta Croma');render(x);
- }catch(err){if(current===serial){status.textContent='La consulta complementaria Croma no se completó: '+(err.message||String(err))+'; los resultados de SECOP siguen siendo independientes.'}}
+function makeAward(row,identity,affiliation,linkedIndex){
+ const pid=txt(row.id_del_proceso),portfolio=txt(row.id_del_portafolio),awardId=txt(row.id_adjudicacion);
+ const supplier=txt(row.nombre_del_proveedor),code=affiliation.code;
+ const linked=(portfolio&&code)?(linkedIndex.get(portfolio+'|'+code)||[]):[];
+ return {
+  key:[pid||portfolio||txt(row.referencia_del_proceso),awardId||'no-id',code||affiliation.nit].join('|'),
+  platform:'II',source:PROCESS,kind:affiliation.kind,reason:affiliation.route,
+  group:affiliation.group?.name||'',groupCode:affiliation.group?.code||'',
+  supplier:supplier||affiliation.group?.name||'No informado',providerNit:txt(row.nit_del_proveedor_adjudicado),providerCode:code,
+  entity:txt(row.entidad),entityNit:txt(row.nit_entidad),
+  processId:pid,portfolio,reference:txt(row.referencia_del_proceso),awardId,
+  awardDate:txt(row.fecha_adjudicacion),value:txt(row.valor_total_adjudicacion),
+  modality:txt(row.modalidad_de_contratacion),state:txt(row.estado_del_procedimiento),
+  awarded:awardReported(row),statusNote:awardReported(row)?'Adjudicación reportada; no acredita por sí sola un contrato firmado.':'Vinculación al proceso; adjudicación no acreditada en este registro.',
+  electronicContracts:uniq(linked.map(c=>c.contractId)),
+  url:evidenceLink(row,PROCESS),evidenceUrl:officialLink(row.urlproceso),
+  sourceRow:row
+ };
 }
-function create(){const form=q('searchForm'),trace=q('trace');if(!form||!trace)return;
- const options=document.createElement('details');options.className='croma-settings';options.innerHTML=`<summary>Contraste complementario con Croma (opcional)</summary><p class="hint">El acceso OAuth a Croma dentro de ChatGPT no activa automáticamente el aplicativo externo; se necesita API key configurada en Render. No introduzca la API key aquí.</p><div id="cromaAuthArea" hidden><label for="cromaAccess">Clave privada de acceso a este buscador (distinta de la API key de Croma)</label><input type="password" id="cromaAccess" autocomplete="off" placeholder="Clave del buscador alojado en Render"><label class="check"><input type="checkbox" id="cromaEnabled"> Consultar Croma en paralelo al buscar por NIT</label></div>`;
- form.insertAdjacentElement('afterend',options);
- const section=document.createElement('section');section.id='cromaSection';section.className='panel croma-panel';section.innerHTML=`<div class="section-label">Contraste complementario</div><h2>Croma · Revisión de cobertura</h2><p class="hint">Esta sección no sustituye la clasificación jurídica principal. Contratos por documento del contratista y coincidencias por representante se mantienen separados. Los registros requieren enlace y verificación oficial.</p><div id="cromaStatus" class="context">Comprobando disponibilidad del servicio…</div><div class="bucket-grid"><section class="bucket"><header>Contratos localizados por NIT</header><div class="results" id="cromaDirect"><div class="empty">Sin contraste aún.</div></div></section><section class="bucket"><header>Contratos vinculados al representante (indicios)</header><div class="results" id="cromaRepresentative"><div class="empty">Sin contraste aún.</div></div></section></div>`;
- trace.insertAdjacentElement('beforebegin',section);
- health();
+function makeBid(row,affiliation){return {
+ key:[txt(row.id_procedimiento),affiliation.code||affiliation.nit].join('|'),
+ platform:'II',source:BIDDERS,kind:affiliation.kind,reason:affiliation.route,
+ group:affiliation.group?.name||'',groupCode:affiliation.group?.code||'',
+ supplier:txt(row.proveedor),providerNit:txt(row.nit_proveedor),providerCode:affiliation.code,
+ processId:txt(row.id_procedimiento),reference:txt(row.id_procedimiento),
+ entity:txt(row.entidad_compradora),entityNit:txt(row.nit_entidad),
+ procedureName:txt(row.nombre_procedimiento),published:txt(row.fecha_publicaci_n),
+ url:evidenceLink(row,BIDDERS),
+ statusNote:'Proponente registrado en procedimiento SECOP II. No acredita adjudicación ni contrato.',
+ sourceRow:row
+ };}
+async function lookup(identity,core,accounts,transport,opts={}){
+ const excluded=opts.platform==='i';
+ const result={at:new Date().toISOString(),sourceIds:[PROCESS,BIDDERS],awards:[],otherProcesses:[],bids:[],uncertain:[],linkedElectronic:[],scope:'Solo SECOP II: adjudicaciones y proponentes registrados. Un proceso o adjudicación NO se contabiliza como contrato celebrado. Registros sujetos a límites y errores de fuente.',skipped:excluded};
+ if(excluded)return result;
+ const groups=new Map((core.groups||[]).filter(g=>valid(g.code)).map(g=>[txt(g.code),g]));
+ const groupCodes=[...groups.keys()];
+ const individualCodes=codesFromAccounts(identity,accounts||[]);
+ const contracts=contractIndex(core);
+ const pRows=await readSource(transport,PROCESS,identity,individualCodes,groupCodes,'procesos y adjudicaciones');
+ const pSeen=new Set;
+ const linked=new Set;
+ for(const row of pRows){
+  const a=affiliation(identity,row,groups,individualCodes,{source:PROCESS});if(!a)continue;
+  const o=makeAward(row,identity,a,contracts);
+  if(pSeen.has(o.key))continue;pSeen.add(o.key);
+  if(a.kind==='uncertain'){result.uncertain.push({...o,reason:o.reason+'; no atribuido al NIT'});continue;}
+  if(o.electronicContracts.length){for(const c of o.electronicContracts)linked.add(c);result.linkedElectronic.push(o);continue;}
+  if(o.awarded)result.awards.push(o);else result.otherProcesses.push(o);
+ }
+ const bRows=await readSource(transport,BIDDERS,identity,individualCodes,groupCodes,'proponentes por proceso');
+ const bids=new Set;
+ const observed=new Set([...result.awards,...result.otherProcesses,...result.linkedElectronic].map(x=>x.processId+'|'+x.providerCode));
+ for(const row of bRows){
+  const a=affiliation(identity,row,groups,individualCodes,{source:BIDDERS});if(!a)continue;
+  const o=makeBid(row,a);
+  if(bids.has(o.key))continue;bids.add(o.key);
+  if(a.kind==='uncertain'){result.uncertain.push({...o,reason:o.reason+'; no atribuido al NIT'});continue;}
+  if(observed.has(o.processId+'|'+o.providerCode))continue;
+  result.bids.push(o);
+ }
+ result.awards.sort((a,b)=>b.awardDate.localeCompare(a.awardDate));
+ result.bids.sort((a,b)=>b.published.localeCompare(a.published));
+ return result;
 }
-create();
-window.SecopCroma={start,getState:()=>last,refresh:health,recordLink,field,platform};
+const API={lookup,awardReported,affiliation,makeAward,makeBid,officialLink,evidenceLink,contractIndex,groupLabel,PROCESS,BIDDERS};
+root.SecopExtended26=API;
+})(typeof window==='undefined'?globalThis:window);
+
+/* Browser presentation; all new material is strictly below the contracted-results sections. */
+(function(){'use strict';
+ if(typeof document==='undefined'||!window.SecopWeb||!window.SecopExtended26)return;
+ const C=window.SecopWeb,$=id=>document.getElementById(id);
+ function esc(v){return C.attr(v==null?'':String(v));}
+ function human(v){return C.valid(v)?esc(v):'No publicado';}
+ function link(url,label){const x=C.safeOfficialUrl(url);return x?`<a href="${esc(x)}" target="_blank" rel="noopener noreferrer">${esc(label)} &nearr;</a>`:''}
+ function awardCard(r){return `<article class="record"><div class="top"><div><span class="tag blue">SECOP II</span><span class="tag">${r.kind==='plural'?'Estructura plural':'Individual'}</span><h3>${human(r.supplier)}</h3><div class="muted">${human(r.reference||r.processId)} &middot; ${human(r.entity)}</div></div></div><div class="detail-grid"><div><span>Resultado publicado</span><strong>Adjudicación, contrato por verificar</strong></div><div><span>Fecha de adjudicación</span><strong>${human(r.awardDate?.slice(0,10))}</strong></div><div><span>Valor adjudicado</span><strong>${human(r.value)}</strong></div></div><p class="micro">${esc(r.reason)}. ${esc(r.statusNote)}</p><div class="links">${link(r.url,'Consultar proceso oficial')}${r.groupCode?link(C.groupUrl(r.groupCode),'Composición del grupo'):''}</div></article>`}
+ function bidCard(r){return `<article class="record"><span class="tag">Proponente SECOP II</span><h3>${human(r.supplier)}</h3><div class="muted">${human(r.processId)} &middot; ${human(r.entity)}</div><p class="micro">${human(r.procedureName)}. ${esc(r.statusNote)} ${esc(r.reason)}</p><div class="links">${link(r.url,'Ver registro de proponentes')}${r.groupCode?link(C.groupUrl(r.groupCode),'Composición de la estructura'):''}</div></article>`}
+ function show(name,list,fun,empty){const h=$(name);if(h)h.innerHTML=list.length?list.map(fun).join(''):`<div class="empty">${esc(empty)}</div>`;const n=$(name+'Count');if(n)n.textContent=list.length;}
+ function render(data){show('extended26Awards',data.awards,awardCard,'Sin adjudicaciones adicionales asociadas al NIT o a sus estructuras en esta consulta.');show('extended26Bids',data.bids,bidCard,'Sin otros registros de proponentes recuperados en esta consulta.');
+ const totals=$('extended26Status');if(totals)totals.textContent=data.skipped?'No se consultaron procesos SECOP II porque se eligió solo SECOP I.':`${data.awards.length} adjudicaciones sin contrato electrónico enlazado en esta consulta, ${data.bids.length} participaciones en procedimientos no duplicadas, ${data.linkedElectronic.length} adjudicaciones vinculadas a contratos ya mostrados. ${data.uncertain.length} registros ambiguos excluidos de la atribución. Ver incidencias de fuentes.`;
+ }
+ const section=document.createElement('section');section.id='extended26Section';section.className='panel';section.innerHTML=`<div class="section-label">04A / Ampliación de cobertura SECOP II</div><h2>Adjudicaciones y propuestas sin contrato electrónico acreditado</h2><p class="hint">Fuentes oficiales: procesos adjudicados (p6dx-8zbt) y proponentes por procedimiento (hgi6-6wh3). No se incorporan a la suma de contratos celebrados ni se califican como contratos en ejecución. Las relaciones plurales requieren coincidencia exacta de código de grupo con integrante registrado.</p><div id="extended26Status" class="context">Pendiente de consulta.</div><div class="bucket-grid"><section class="bucket"><header><strong>Adjudicaciones por verificar</strong><span class="bucket-count" id="extended26AwardsCount">0</span></header><div id="extended26Awards" class="results"><div class="empty">Ingrese un NIT.</div></div></section><section class="bucket"><header><strong>Otras participaciones en procesos</strong><span class="bucket-count" id="extended26BidsCount">0</span></header><div id="extended26Bids" class="results"><div class="empty">Ingrese un NIT.</div></div></section></div>`;
+ const next=$('candidateSection')||$('trace');if(next)next.insertAdjacentElement('beforebegin',section);
+  const audit=$('trace');if(audit){const note=document.createElement('details');note.className='institutional-coverage';
+ note.innerHTML=`<summary>Portales externos: alcance que falta indexar</summary><p class="hint">FINDETER, ASOSUPRO, universidades, empresas de servicios públicos y fuentes internacionales no están conectadas a esta edición estática. Que no aparezcan contratos de esas fuentes no acredita su inexistencia. El paquete de desarrollo contiene un rastreador piloto independiente para FINDETER y ASOSUPRO, aún no desplegado como servicio persistente.</p><div class="links"><a href="https://www.findeter.gov.co/convocatorias" target="_blank" rel="noopener noreferrer">FINDETER ↗</a><a href="https://contratacion.asosupro.gov.co/site/index" target="_blank" rel="noopener noreferrer">ASOSUPRO ↗</a></div>`;
+ audit.append(note)}
+ window.SecopCoverage26={render,reset(){show('extended26Awards',[],awardCard,'Esperando consulta.');show('extended26Bids',[],bidCard,'Esperando consulta.');$('extended26Status').textContent='Consultando fuentes nuevas...';}};
 })();

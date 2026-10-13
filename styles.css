@@ -21,11 +21,12 @@
 
 
 /* Complemento protegido Croma; conserva los resultados y estilo de SECOP 2.4. */
-.croma-settings{margin-top:14px;padding:11px 15px;border:1px solid #d7e4e8;border-radius:8px;background:#f8fbfc}
-.croma-settings summary{font-weight:600;cursor:pointer;color:#1a526c}
-.croma-settings #cromaAuthArea{margin-top:10px}
-.croma-settings label{display:block;margin:10px 0 5px}
-.croma-settings input[type=password]{width:min(100%,460px);min-height:38px;border:1px solid #b8cbd2;border-radius:6px;padding:8px}
-.croma-panel .detail-row{font-size:13px;color:#374d5d;margin-top:7px;overflow-wrap:anywhere}
-.croma-panel .record a{display:inline-block;margin-top:12px;font-weight:600}
-.croma-panel .bucket header{min-height:44px}
+
+/* Fuentes ampliadas v2.6 */
+#extended26Section .record{background:#fff}
+#extended26Section .micro{line-height:1.5;font-size:12px;margin:9px 0}
+#extended26Section .bucket{min-width:0}
+@media print{#extended26Section .record{break-inside:avoid}}
+
+.institutional-coverage{padding:12px 0;border-top:1px solid #e3ebef;margin-top:16px}
+.institutional-coverage summary{font-weight:650;font-size:12.5px;cursor:pointer;color:#33586b}
