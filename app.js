@@ -76,7 +76,24 @@ class PublicData{
    if(!expressions.length)throw Error('No se construyó un filtro selectivo');
    const where=expressions.length===1?expressions[0]:'('+expressions.map(x=>'('+x+')').join(' OR ')+')';
    let results=[];const pg=Math.min(this.page,Math.max(1,limit));let ended=false;
-   for(let offset=0;offset<limit;offset+=pg){const u=new URL('/resource/'+ds+'.json',SOURCE);u.searchParams.set('$where',where);u.searchParams.set('$limit',String(Math.min(pg,limit-offset)));u.searchParams.set('$offset',String(offset));u.searchParams.set('$order',':id ASC');const resp=await this.fetcher(u.href,{headers:{Accept:'application/json'}});if(!resp.ok){let reason='';try{reason=(await resp.text()).slice(0,140)}catch{}throw Error('HTTP '+resp.status+' '+reason)}const rows=await resp.json();if(!Array.isArray(rows))throw Error('La respuesta no fue una lista');results.push(...rows);if(rows.length<Math.min(pg,limit-offset)){ended=true;break;}}
+   for(let offset=0;offset<limit;offset+=pg){
+    const u=new URL('/resource/'+ds+'.json',SOURCE);
+    u.searchParams.set('$where',where);u.searchParams.set('$limit',String(Math.min(pg,limit-offset)));
+    u.searchParams.set('$offset',String(offset));u.searchParams.set('$order',':id ASC');
+    let rows,problem=null;
+    // Temporary upstream failures must not silently erase already retrieved pages.
+    for(let attempt=0;attempt<3;attempt++){
+     try{
+      const resp=await this.fetcher(u.href,{headers:{Accept:'application/json'}});
+      if(!resp.ok){let reason='';try{reason=(await resp.text()).slice(0,140)}catch{}
+       const err=Error('HTTP '+resp.status+' '+reason);err.transient=[408,429,500,502,503,504].includes(resp.status);throw err;}
+      rows=await resp.json();if(!Array.isArray(rows))throw Error('La respuesta no fue una lista');problem=null;break;
+     }catch(e){problem=e;if(attempt>=2||e.transient===false)break;
+      await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));}
+    }
+    if(problem){t.count=results.length;t.status=results.length?'partial':'failed';t.error='Página '+(1+offset/pg)+': '+txt(problem.message||problem).slice(0,290);return results;}
+    results.push(...rows);if(rows.length<Math.min(pg,limit-offset)){ended=true;break;}
+   }
    t.count=results.length;t.truncated=!ended&&results.length>=limit;t.status=t.truncated?'partial':'ok';return results;
   }catch(e){t.status='failed';t.error=txt(e.message||e).slice(0,400);return []}
  }
@@ -118,10 +135,6 @@ async function discover(id,opts={},transport){
   const conditions=[['nit_participante',id.variants]];if(codes.length)conditions.push(['codigo_participante',uniq(codes)]);
   const memberships=await data.filter(DS.groups,conditions,'Localizar pertenencias registradas SECOP II',{limit:1200});
   for(const row of memberships)if(idMatch(id,row.nit_participante)||codes.includes(txt(row.codigo_participante)))addGroup(row);
-  for(const b of batch([...groups.keys()])){
-   const components=await data.filter(DS.groups,[['codigo_grupo',b]],'Recuperar composición de grupos',{limit:1200});
-   for(const r of components){const g=groups.get(txt(r.codigo_grupo));if(g)g.composition.push(selectFields(r,['codigo_participante','nit_participante','nombre_participante','participacion']))}
-  }
  }
  out.groups=[...groups.values()];if(opts.onProgress)opts.onProgress(out,'Grupos con pertenencia recuperada');
  // Direct contracts; keep group contractors out of the individual section.
@@ -132,9 +145,21 @@ async function discover(id,opts={},transport){
   for(const r of own){const cod=txt(r.codigo_proveedor),kind=norm(r.es_grupo);if(gCodes.has(cod)||['SI','SÍ','TRUE','YES'].includes(kind))continue;
    if(idMatch(id,r.documento_proveedor)||codes.includes(cod))out.individual.push(record('II',r,'Identificación/código propio de proveedor'));
   }
-  for(const ids of batch([...groups.keys()],20)){
-   const contracts=await data.filter(DS.contractsII,[['codigo_proveedor',ids]],'SECOP II: contratos vinculados al código de grupo',{limit:1200});
+  // Prioritize contracts over 300+ composition lookups; retry smaller batches if a source rejects one.
+  async function fetchGroupContracts(ids,depth=0){
+   const results=await data.filter(DS.contractsII,[['codigo_proveedor',ids]],'SECOP II: contratos de grupos acreditados',{limit:1200});
+   const task=data.tasks[data.tasks.length-1];
+   if(task?.status==='ok'||ids.length<=1||depth>=6)return results;
+   const half=Math.ceil(ids.length/2);
+   const left=await fetchGroupContracts(ids.slice(0,half),depth+1);
+   const right=await fetchGroupContracts(ids.slice(half),depth+1);
+   return [...results,...left,...right];
+  }
+  for(const ids of batch([...groups.keys()],50)){
+   const contracts=await fetchGroupContracts(ids);
    for(const r of contracts){const g=groups.get(txt(r.codigo_proveedor));if(g)out.plural.push(record('II',r,'Código exacto de grupo SECOP II',g));}
+   // Early visible progress prevents later non-contractual work from masking recovered contracts.
+   if(opts.onProgress)opts.onProgress(out,'Contratos plurales acreditados: '+out.plural.length+' (verificando grupos restantes)');
   }
  }
  if(opts.onProgress)opts.onProgress(out,'Contratos electrónicos SECOP II recuperados');
@@ -158,6 +183,12 @@ async function discover(id,opts={},transport){
     }
    }
   }
+ }
+ // Group composition is a supplementary step, never a prerequisite for finding a contract.
+ // Keep previous comprehensive group cards while exposing contracts much earlier.
+ for(const b of batch([...groups.keys()],40)){
+  const components=await data.filter(DS.groups,[['codigo_grupo',b]],'Recuperar composición detallada de consorcios',{limit:1200});
+  for(const r of components){const g=groups.get(txt(r.codigo_grupo));if(g)g.composition.push(selectFields(r,['codigo_participante','nit_participante','nombre_participante','participacion']))}
  }
  if(opts.onProgress)opts.onProgress(out,'Contratos y procesos SECOP I recuperados; comprobando candidatos');
  // Candidate rules: group name, representative name or representative ID only. Never promote to membership.
@@ -324,7 +355,7 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
  function contractCard(r){
   const e=r.execution||executionStatus(r);
   const badge=r.participationReason?'<span class="tag warn">Proceso sin firma acreditada</span>':e.level==='reported'?'<span class="tag strong">Ejecución reportada</span>':e.level==='possible'?'<span class="tag warn">Posible ejecución</span>':'<span class="tag">Contrato registrado</span>';
-  return `<article class="record"><div class="top"><div>${badge}<h3>${display(r.contractor||r.group)}</h3><div class="muted">${display(r.reference)} · ${display(r.entity)}</div></div><div class="role">${safe(r.route)}</div></div><div class="detail-grid"><div><span>Estado publicado</span><strong>${display(r.state)}</strong></div><div><span>Inicio / fin publicados</span><strong>${safe(day(r.start))} / ${safe(day(r.end))}</strong><small>${safe(r.dateBasis||'Referencia del registro contractual')}</small></div><div><span>Identificación del contratista</span><strong>${display(r.contractorId)}</strong></div></div><div class="context ${e.level==='possible'||r.participationReason?'warning':''}">${safe(r.participationReason||e.text)}</div><details><summary>Objeto y fundamento de la vinculación</summary><p class="secondary">${objectText(r.object)}</p><p class="muted">Fuente: ${safe(r.source)}. ${safe(r.route)}. Una fecha proyectada no incorpora necesariamente suspensiones o modificaciones.</p></details><div class="links">${link(r.url,'Ver expediente contractual en SECOP')}${r.groupCode?`<a href="#gruposRegistrados">Ver composición del grupo en esta página ↓</a>`:''}</div></article>`;
+  return `<article class="record"><div class="top"><div>${badge}<h3>${display(r.contractor||r.group)}</h3><div class="muted">${display(r.reference)} · ${display(r.entity)}</div></div><div class="role">${safe(r.route)}</div></div><div class="detail-grid"><div><span>Estado publicado</span><strong>${display(r.state)}</strong></div><div><span>Firma / inicio / fin</span><strong>${safe(day(r.sourceRow?.fecha_de_firma||r.sourceRow?.fecha_de_firma_del_contrato))} / ${safe(day(r.start))} / ${safe(day(r.end))}</strong><small>${safe(r.dateBasis||'Referencia del registro contractual')}</small></div><div><span>Identificación del contratista</span><strong>${display(r.contractorId)}</strong></div><div><span>Valor inicial publicado</span><strong>${r.value&&!isNaN(Number(r.value))?new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(r.value)):display(r.value)}</strong></div></div><div class="context ${e.level==='possible'||r.participationReason?'warning':''}">${safe(r.participationReason||e.text)}</div><details><summary>Objeto y fundamento de la vinculación</summary><p class="secondary">${objectText(r.object)}</p><p class="muted">Fuente: ${safe(r.source)}. ${safe(r.route)}. Una fecha proyectada no incorpora necesariamente suspensiones o modificaciones.</p></details><div class="links">${link(r.url,'Ver expediente contractual en SECOP')}${r.groupCode?`<a href="#gruposRegistrados">Ver composición del grupo en esta página ↓</a>`:''}</div></article>`;
  }
  function compositionHTML(composition){
   const members=composition||[];
@@ -367,7 +398,7 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
   `<section class="panel" id="candidateSection"><div class="section-label">05 / Candidatos con contratos</div><h2>Contratos de estructuras parecidas, pendientes de comprobar</h2><p class="hint">Coincidencias de denominación plural o representante, vinculadas además a un contrato identificado. No se atribuyen al consultado sin acreditar composición.</p><div class="bucket-grid">${['I','II'].map(p=>`<section class="bucket"><header><strong>SECOP ${p} · Estructuras plurales</strong><span class="bucket-count" id="candidate${p}pluralCount">0</span></header><div id="candidate${p}plural" class="results"></div></section>`).join('')}</div></section>`;
   const trace=$('trace');trace.insertAdjacentHTML('beforebegin',newSections);
   $('trace').querySelector('.section-label').textContent='06 / Fuentes y cobertura';
-  document.querySelector('.mast-tag').textContent='Consulta pública · Versión 2.9 (Croma opcional)';
+  document.querySelector('.mast-tag').textContent='Consulta pública · Versión 2.10 (recuperación reforzada)';
   document.querySelector('.mast h1').textContent='Contratos y participación por NIT';
   document.querySelector('.mast p').textContent='Primero ejecución, luego contratos, participaciones y candidatos respaldados por contratos. Información verificable en SECOP.';
  }
