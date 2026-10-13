@@ -408,6 +408,7 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
   let id;try{id=C.identity($('identifier').value,$('kind').value)}catch(e){update(e.message,'problem');return}
   const btn=$('searchButton');btn.disabled=true;$('download').disabled=true;latest=null;
   update('Buscando registros individuales y plurales…');
+  window.SecopCroma?.start(id.raw, $('representativeId').value.trim(), $('platform').value);
   try{
    const p=new C.PublicData({update:stage=>update(stage+'…'),proxyKey:!$('indexOption').hidden?$('apiKey').value.trim():''});
    const core=await C.discover(id,{platform:$('platform').value,historical:$('historical').checked,similar:$('similar').checked,representativeId:$('representativeId').value.trim(),indexClient:$('indexOption').hidden||!$('useIndex').checked?null:indexClient,onProgress:(part,stage)=>{reportUI(summarize(part),part,stage);}},p);
@@ -423,7 +424,76 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
   }catch(e){update('Consulta interrumpida: '+(e.message||e),'problem')}finally{btn.disabled=false}
  },true);
  // Captura exportación para que se descargue el nuevo informe, no el anterior.
- $('download').addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(!latest)return;const b=new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='secop_verificacion_v24_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)},true);
+ $('download').addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(!latest)return;latest.croma=window.SecopCroma?.getState()||null;const b=new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='secop_verificacion_v24_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)},true);
  // Utilidades para pruebas automatizadas.
  window.SecopPresentation={isContractI,isContractII,executionStatus,summarize,collectContractCandidates};
+})();
+
+
+/* SECOP Croma pilot; does not expose Croma's API key or assert group membership. */
+(function(){
+'use strict';
+if(typeof document==='undefined')return;
+const API='https://secop-croma-bridge.onrender.com';
+const q=id=>document.getElementById(id);
+const s=v=>v==null?'':String(v).trim();
+let configured=false, login='', current=null, last=null;
+function field(record,keys){for(const key of keys){const v=record?.[key];if(v!==undefined&&v!==null&&s(v)!=='')return s(v)}return ''}
+function platform(record){const p=field(record,['platform','source_platform']).toLowerCase();if(/secop.?i(i)?$/.test(p))return p.includes('ii')?'SECOP II':'SECOP I';if(p==='i')return 'SECOP I';if(p==='ii')return 'SECOP II';return p||'Plataforma no indicada'}
+function contractKey(record){return field(record,['id','contract_id','reference','contract_reference','process_id'])}
+function recordLink(record){
+ const candidate=field(record,['url','contract_url','process_url','secop_url','source_url','link']);
+ try{const u=new URL(candidate);if(u.protocol==='https:'&&/(^|\.)(datos\.gov\.co|contratos\.gov\.co|secop\.gov\.co|colombiacompra\.gov\.co)$/.test(u.hostname))return u.href}catch{}
+ const code=field(record,['contract_id']);
+ if(/^CO1\.PCCNTR\.\d+$/i.test(code))return 'https://community.secop.gov.co/Public/Tendering/ContractDetailView/Index?UniqueIdentifier='+encodeURIComponent(code);
+ const c=field(record,['constancia','process_reference']);
+ if(/^\d{2}-\d+-\d{5,}$/.test(c))return 'https://www.contratos.gov.co/consultas/detalleProceso.do?numConstancia='+encodeURIComponent(c);
+ return '';
+}
+function div(cls,text){const node=document.createElement('div');node.className=cls;node.textContent=text;return node}
+function renderList(host,part,isRep){host.replaceChildren();if(!part){host.append(div('empty','Sin consulta por representante.'));return}
+ const rows=part.records||[];
+ host.append(div('context',`Croma: ${rows.length} registros recibidos de ${part.total_reported} publicados en la consulta · corte ${part.as_of||'no informado'}${part.truncated?' · RESULTADOS INCOMPLETOS (límite de páginas)':''}.`));
+ if(!rows.length){host.append(div('empty','No se encontraron registros en las páginas consultadas. Esto no certifica que no existan otros contratos.'));return}
+ for(const r of rows){const e=document.createElement('article');e.className='record';const name=field(r,['provider_name','contractor_name','supplier_name','contractor','provider','proveedor','contractor_legal_name'])||'Contratista no indicado';
+ const ref=field(r,['contract_id','contract_reference','reference','id'])||'Referencia no informada';
+ const title=document.createElement('h3');title.textContent=name;e.append(title);
+ e.append(div('muted',`${platform(r)} · ${ref}${isRep?' · COINCIDENCIA POR REPRESENTANTE (NO PRUEBA PARTICIPACIÓN DEL NIT)':''}`));
+ const entity=field(r,['entity_name','entity','contracting_entity','buyer_name','buyer']);if(entity)e.append(div('detail-row',`Entidad: ${entity}`));
+ const status=field(r,['status','contract_status','state']);e.append(div('detail-row',`Estado: ${status||'No publicado'}`));
+ const end=field(r,['end_date','contract_end_date','execution_end_date','fecha_fin']);const start=field(r,['start_date','contract_start_date','execution_start_date']);
+ if(start||end)e.append(div('detail-row',`Fechas publicadas: ${start||'no informada'} / ${end||'no informada'}`));
+ const value=field(r,['value_with_additions','contract_value','value']);if(value)e.append(div('detail-row',`Valor reportado: ${value}`));
+ const link=recordLink(r);if(link){const a=document.createElement('a');a.textContent='Ver expediente o registro oficial SECOP ↗';a.href=link;a.target='_blank';a.rel='noopener noreferrer';e.append(a)}else e.append(div('muted','No hay enlace directo a expediente confirmado en este registro.'));
+ host.append(e);
+ }
+}
+function render(data){last=data;const direct=q('cromaDirect'),rep=q('cromaRepresentative');if(!direct||!rep)return;
+ renderList(direct,data.direct,false);renderList(rep,data.representative_candidates,true);
+ const top=q('cromaStatus');top.textContent=`Contraste realizado. ${data.direct.count_returned} contratos por identificación, ${data.representative_candidates?.count_returned||0} por representante (no atribuibles al NIT). Fuente Croma; sin equiparar una coincidencia nominal con participación contractual.`;
+}
+async function health(){const status=q('cromaStatus');try{const resp=await fetch(API+'/health',{cache:'no-store',signal:AbortSignal.timeout(9000)});if(!resp.ok)throw new Error('HTTP '+resp.status);
+ const x=await resp.json();configured=x.configured===true;
+ status.textContent=configured?'Croma disponible para contraste; registre la clave de acceso del buscador (no la API key de Croma).':'La conexión del servidor Croma está pendiente de activar con sus credenciales en Render. La consulta SECOP funciona normalmente.';
+ if(configured){q('cromaAuthArea').hidden=false;q('cromaEnabled').disabled=false}
+ }catch{status.textContent='El servicio complementario Croma aún no está disponible. La consulta SECOP funciona independientemente.'}
+}
+async function start(nit,repId,platformChoice){
+ if(!configured||!q('cromaEnabled')?.checked)return;
+ const code=s(q('cromaAccess').value);const status=q('cromaStatus');
+ if(code.length<20){status.textContent='Para activar Croma debe introducir la clave de acceso privada del buscador. No introduzca la clave API de Croma aquí.';return}
+ const serial=Symbol();current=serial;status.textContent='Contrastando contratos con Croma sin interrumpir SECOP…';
+ try{const rsp=await fetch(API+'/api/croma/search',{method:'POST',headers:{'Content-Type':'application/json','X-SECOP-Access':code},body:JSON.stringify({document:nit,representative_document:repId||undefined,platform:platformChoice==='i'?'secop_i':platformChoice==='ii'?'secop_ii':'any'}),signal:AbortSignal.timeout(95000),cache:'no-store'});
+ const x=await rsp.json();if(current!==serial)return;if(!rsp.ok)throw Error(x.error||'Error de consulta Croma');render(x);
+ }catch(err){if(current===serial){status.textContent='La consulta complementaria Croma no se completó: '+(err.message||String(err))+'; los resultados de SECOP siguen siendo independientes.'}}
+}
+function create(){const form=q('searchForm'),trace=q('trace');if(!form||!trace)return;
+ const options=document.createElement('details');options.className='croma-settings';options.innerHTML=`<summary>Contraste complementario con Croma (opcional)</summary><p class="hint">El acceso OAuth a Croma dentro de ChatGPT no activa automáticamente el aplicativo externo; se necesita API key configurada en Render. No introduzca la API key aquí.</p><div id="cromaAuthArea" hidden><label for="cromaAccess">Clave privada de acceso a este buscador (distinta de la API key de Croma)</label><input type="password" id="cromaAccess" autocomplete="off" placeholder="Clave del buscador alojado en Render"><label class="check"><input type="checkbox" id="cromaEnabled"> Consultar Croma en paralelo al buscar por NIT</label></div>`;
+ form.insertAdjacentElement('afterend',options);
+ const section=document.createElement('section');section.id='cromaSection';section.className='panel croma-panel';section.innerHTML=`<div class="section-label">Contraste complementario</div><h2>Croma · Revisión de cobertura</h2><p class="hint">Esta sección no sustituye la clasificación jurídica principal. Contratos por documento del contratista y coincidencias por representante se mantienen separados. Los registros requieren enlace y verificación oficial.</p><div id="cromaStatus" class="context">Comprobando disponibilidad del servicio…</div><div class="bucket-grid"><section class="bucket"><header>Contratos localizados por NIT</header><div class="results" id="cromaDirect"><div class="empty">Sin contraste aún.</div></div></section><section class="bucket"><header>Contratos vinculados al representante (indicios)</header><div class="results" id="cromaRepresentative"><div class="empty">Sin contraste aún.</div></div></section></div>`;
+ trace.insertAdjacentElement('beforebegin',section);
+ health();
+}
+create();
+window.SecopCroma={start,getState:()=>last,refresh:health,recordLink,field,platform};
 })();
