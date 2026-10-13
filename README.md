@@ -44,3 +44,15 @@ Se recomienda desarrollar y ejecutar este trabajador en infraestructura con alma
 4. Medir la cobertura, falsos positivos y pendientes. El resultado «sin coincidencias» nunca acredita ausencia de contratos.
 
 Consulte `docs/VALIDACION.md` y `docs/FUENTES.md`.
+
+## Novedad 2.7: indice documental ligero
+
+Consulte `README_INDEX27.md` para arquitectura, cobertura, API publica y despliegue.
+La interfaz incorpora un panel breve de resultados documentales y fuentes;
+no sube, muestra internamente ni archiva PDF. Se incluye un antecedente inicial
+verificado (ASOSUPRO LP-035-2025, Contrato 002 de 2026, Consorcio Matepantano
+MYM y participacion del 10% de MEYAN S.A.).
+
+El esquema PostgreSQL puede alojarse en Render mediante `DATABASE_URL` secreta.
+La actualizacion automatica nacional SECOP I / mensajes SECOP II sigue en
+construccion; nunca se considera completa por la presencia de un caso piloto.

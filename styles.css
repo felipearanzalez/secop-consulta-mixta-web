@@ -30,3 +30,20 @@
 
 .institutional-coverage{padding:12px 0;border-top:1px solid #e3ebef;margin-top:16px}
 .institutional-coverage summary{font-weight:650;font-size:12.5px;cursor:pointer;color:#33586b}
+
+/* SECOP 2.7 - documentary index, quiet and lightweight */
+.documentary-index{border-left:3px solid #4b7187}
+.documentary-index[hidden]{display:none!important}
+.index-line{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.index-line h2{margin-bottom:3px}
+.index-note{font-size:.79rem;color:var(--ink-light,#61717d);white-space:nowrap}
+.index27-records{display:grid;gap:12px;margin-top:12px}
+.index27-card{border:1px solid #dce5e8;border-radius:10px;padding:15px;background:#fff}
+.index27-top{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px}
+.index27-card h3{margin:6px 0;font-size:1.04rem}
+.index27-id,.index27-detail{font-size:.9rem;color:#52606d;margin:4px 0}
+.index27-links{display:flex;gap:15px;flex-wrap:wrap;margin-top:11px;font-size:.87rem}
+.index27-source{text-decoration:underline;text-underline-offset:2px}
+.index27-indicators{border-top:1px solid #e3e9ed;padding-top:9px;font-size:.87rem}
+.index27-indicators summary{cursor:pointer}
+.index27-hint{padding:6px 0}

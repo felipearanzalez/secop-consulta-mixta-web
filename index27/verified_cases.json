@@ -1,0 +1,47 @@
+[
+  {
+    "contract_key": "ASOSUPRO:LP-035-2025:002-2026",
+    "jurisdiction": "CO",
+    "platform": "Portal institucional ASOSUPRO / SECOP II",
+    "entity_name": "ASOCIACION SUPRADEPARTAMENTAL DE MUNICIPIOS PARA EL PROGRESO - ASOSUPRO",
+    "process_ref": "LP-035-2025",
+    "notice_uid": "CO1.NTC.10035129",
+    "contract_ref": "Contrato de Obra Publica 002 de 2026",
+    "contractor": "CONSORCIO MATEPANTANO MYM",
+    "contractor_nit": "902020636",
+    "contract_value_cop": 10046170904,
+    "sign_date": "2026-01-06",
+    "execution_class": "firma_acreditada_ejecucion_no_verificada",
+    "execution_end_date": null,
+    "process_url": "https://contratacion.asosupro.gov.co/proceso/view?id=9aa802dc335a11f1bfe2fa163e75d6de",
+    "verification_method": "Contrato suscrito y poliza oficial con composicion del consorcio",
+    "members": [
+      {"nit":"800143586","name":"MEYAN S.A.","share_percent":10},
+      {"nit":"901505828","name":"MYM INCONSER SAS ZOMAC","share_percent":80},
+      {"nit":"901601837","name":"AGREOBRAS SAS","share_percent":10}
+    ],
+    "evidence": [
+      {
+        "kind":"contrato_firmado",
+        "label":"Contrato de Obra Publica 002 de 2026; partes, valor y firma",
+        "url":"https://contratacion.asosupro.gov.co/admin/uploads/proceso/9aa802dc335a11f1bfe2fa163e75d6de/23.%20CONTRATO%20DE%20OBRA%20PUBLICA%20002%20DE%202026.pdf",
+        "page":4,
+        "note":"Pag. 2: partes; pag. 4: precio y plazo; pag. 23: firmas"
+      },
+      {
+        "kind":"composicion_plural",
+        "label":"Poliza de cumplimiento: identificaciones y participacion 10/80/10",
+        "url":"https://contratacion.asosupro.gov.co/admin/uploads/proceso/9aa802dc335a11f1bfe2fa163e75d6de/25.%20GARANTIAS%20-%20POLIZAS.pdf",
+        "page":4,
+        "note":"Tabla Participantes Consorcio - Union Temporal, pag. 4 del PDF"
+      },
+      {
+        "kind":"secop_expediente",
+        "label":"Expediente publicado en SECOP II (sin contrato estructurado asociado)",
+        "url":"https://community.secop.gov.co/Public/Tendering/OpportunityDetail/Index?noticeUID=CO1.NTC.10035129",
+        "page":null,
+        "note":"El registro estructurado del proceso no acredita adjudicacion ni contrato; la evidencia es documental"
+      }
+    ]
+  }
+]
