@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Callable
 from index28.socrata import scan_exact, fetch_json, VALID_CONSTANCIA
+from index28.secop_i_inventory import official_https_url
 
 DATASETS = ("f789-7hwg", "qddk-cgux", "tauh-5jvn", "ps88-5e3v", "8kpz-m6cc")
 
@@ -84,6 +85,9 @@ def expediente(constancia: str, fetch: Callable[[str], list[dict]] = fetch_json,
                          "description": _real(row.get("descripcion")),
                          "created_at": _real(row.get("fecha_creacion")),
                          "modified_at": _real(row.get("fecha_ultima_modificacion")),
+                         "metadata_version": _real(row.get("version")),
+                         "extension": _real(row.get("extension")),
+                         "download_url_published": official_https_url(row.get("ruta_descarga")),
                          "source": ds, "evidence_status": "metadatos_sin_lectura",
                          "source_url": f"https://www.datos.gov.co/d/{ds}",
                          "safe_public_download_verified": False})

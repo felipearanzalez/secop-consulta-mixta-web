@@ -1,6 +1,6 @@
 # SECOP Consulta Mixta — desarrollo controlado posterior a 2.10
 
-**Estado (13 de octubre de 2026):** piloto de conectores; no integrado a la web.
+**Estado:** conectores, cola documental persistente, descubrimiento de expedientes, OCR opcional y conciliación desarrollados y verificados en rama independiente; no integrados a la web. Detalle y reproducción en `DESARROLLO_211_CONTINUACION.md` y `VALIDACION_211.json`.
 
 ## Regla de congelamiento
 
@@ -18,7 +18,7 @@
 | `index28/socrata.py` | Consultas acotadas a fuentes de Datos Abiertos, con lista cerrada de conjuntos/campos, paginación y errores visibles. |
 | `index28/expediente_secop_i.py` | Une registros contractuales `f789-7hwg` y `qddk-cgux` con `tauh-5jvn`, `ps88-5e3v` y `8kpz-m6cc`, sin atribuir contratos por simple aparición de un proponente. |
 | `index28/regimen_especial_secop2.py` | Consulta portafolios `CO1.BDOS` en `jbjy-vk9h`, `p6dx-8zbt` y `dmgg-8hin`; diferencia modalidad especial reportada, contratos estructurados y documentos sin examinar. |
-| `index28/evidence.py` | Lee temporalmente PDF textual, con límite de bytes y páginas; identifica **indicios** de NIT y registra página + huella, nunca declara pertenencia por una mención. |
+| `index28/evidence.py` | Lee temporalmente PDF textual y admite OCR opcional en español, con límites de bytes, páginas y tiempo. Registra indicios de NIT y candidaturas de composición, con página y huella; no declara pertenencia por una mención. |
 | `index28/document_worker.py` | Selecciona documentos de interés y solo permite descargar PDF de una ruta HTTPS autorizada; no conserva el archivo. Puede guardar únicamente indicios en el esquema existente de PostgreSQL/SQLite. |
 | `index28/checkpoints.py` | Tabla SQL independiente de marcadores de avance. Un fallo conserva el último cursor satisfactorio. No hay ejecuciones programadas. |
 | `index28/cli.py` | Prueba manual de inventarios oficiales, sin escribir en PostgreSQL. |

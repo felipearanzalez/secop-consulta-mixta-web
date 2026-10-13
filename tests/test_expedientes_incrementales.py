@@ -214,6 +214,21 @@ if __name__=="__main__":
     unittest.main()
 
 class WorkerTests(unittest.TestCase):
+    def test_scanned_pdf_does_not_mark_legacy_inventory_complete(self):
+        from index28.document_worker import inspect_portfolio
+        from reportlab.pdfgen.canvas import Canvas
+        b=io.BytesIO();c=Canvas(b);c.showPage();c.save()
+        url="https://community.secop.gov.co/Public/Archive/RetrieveFile/Index?DocumentId=625136592"
+        def source(addr):
+            if "dmgg-8hin" in addr:
+                return [{"proceso":"CO1.BDOS.8263083","id_documento":"625136592",
+                         "nombre_archivo":"CONTRATO 280.pdf","url_descarga_documento":{"url":url}}]
+            return []
+        result=inspect_portfolio("CO1.BDOS.8263083",fetch=source,download=lambda uri:b.getvalue())
+        self.assertEqual(result["documents_inspected"][0]["status"],"partial")
+        self.assertEqual(result["documents_inspected"][0]["unreadable_pages"],[1])
+        self.assertFalse(result["coverage_complete"])
+
     def test_safe_download_refuses_bad_domains(self):
         from index28.document_worker import valid_document_uri,read_pdf_https
         self.assertFalse(valid_document_uri("https://user:password@community.secop.gov.co/Public/Archive/RetrieveFile/Index?DocumentId=10"))

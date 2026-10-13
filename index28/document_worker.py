@@ -82,8 +82,12 @@ def inspect_portfolio(portfolio: str, *, fetch: Callable[[str], list[dict]] = fe
                 continue
             parsed = parse_pdf(download(url), source=DOCS,process_ref=portfolio,
                                process_url=public_reference,document_url=url)
-            state["status"]="parsed";state["indicators"]=len(parsed["indicators"])
+            incomplete=bool(parsed.get("truncated") or parsed.get("unreadable_pages") or parsed.get("errors"))
+            state["status"]="partial" if incomplete else "parsed"
+            state["indicators"]=len(parsed["indicators"])
             state["sha256"]=parsed["sha256"];state["pages_examined"]=parsed["pages_examined"]
+            state["pages_reported"]=parsed["pages_reported"]
+            state["unreadable_pages"]=parsed.get("unreadable_pages",[])
             observed+=state["indicators"]
             if store:
                 for hint in parsed["indicators"]:
