@@ -10,7 +10,7 @@ import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-PATTERNS=("test_document_pipeline.py","test_document_ocr.py","test_discovery.py",
+PATTERNS=("test_documentary_api.py","test_queue_resume.py","test_document_pipeline.py","test_document_ocr.py","test_discovery.py",
           "test_expedientes_incrementales.py","test_secop_i_inventory.py","test_index27.py")
 
 

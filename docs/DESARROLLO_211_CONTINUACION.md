@@ -1,5 +1,7 @@
 # SECOP Consulta Mixta — continuación del desarrollo 2.11
 
+Este documento conserva el alcance de la primera continuación. La revisión posterior `CONTINUACION_211_R2.md` detalla la reanudación por página, el renderizado PDFium, las pausas de fuente y la API de evidencia, y actualiza los límites y comandos descritos aquí. Su verificación está en `VALIDACION_211_R2.json`.
+
 ## 1. Línea base y publicación
 
 La versión 2.10 corresponde al commit `364acf769ee42024a876a061164708245eda57e4`. Las ramas `main` y `release/v2.10-estable` conservan esa referencia. El desarrollo se incorpora exclusivamente a `desarrollo/secop-i-regimen-especial-v211`.

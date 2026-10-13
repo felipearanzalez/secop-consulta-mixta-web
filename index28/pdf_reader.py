@@ -25,6 +25,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
-        print('{"reader_error":"reader_failed"}')
+    except Exception as exc:
+        code="document_changed" if str(exc)=="document_changed" else "reader_failed"
+        print(json.dumps({"reader_error":code}))
         raise SystemExit(2)

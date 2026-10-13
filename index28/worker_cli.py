@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from index28.persistence import DocumentStore
-from index28.pipeline import run_process
+from index28.pipeline import run_process,work_queue,catalogue_process
 from index28.reconciliation import reconcile,reconcile_export
 from index28.discovery import seed_plural
 
@@ -19,6 +19,20 @@ def main(argv=None):
     work.add_argument("--database",required=True,help="URL PostgreSQL de desarrollo o sqlite:///ruta")
     work.add_argument("--documents",type=int,default=3)
     work.add_argument("--ocr",action="store_true",help="Leer hasta ocho paginas escaneadas por archivo; requiere Tesseract spa")
+    work.add_argument("--pages",type=int,default=8,help="Paginas por archivo en este lote (1 a 8)")
+    queue=commands.add_parser("work-queue",help="Procesar y reanudar documentos ya descubiertos")
+    queue.add_argument("--database",required=True)
+    queue.add_argument("--documents",type=int,default=10)
+    queue.add_argument("--pages",type=int,default=3)
+    queue.add_argument("--seconds",type=int,default=300)
+    queue.add_argument("--ocr",action="store_true")
+    status=commands.add_parser("status",help="Consultar cobertura, estados y bloqueos del piloto")
+    status.add_argument("--database",required=True)
+    catalogue=commands.add_parser("catalogue",help="Guardar inventario y trabajos sin descargar PDF")
+    catalogue.add_argument("--database",required=True)
+    catalogue.add_argument("--platform",choices=["I","II"],required=True)
+    catalogue.add_argument("--reference",required=True)
+    catalogue.add_argument("--ocr",action="store_true")
     lookup=commands.add_parser("candidates",help="Consultar evidencia pendiente de revision")
     lookup.add_argument("--database",required=True)
     lookup.add_argument("--nit",required=True)
@@ -42,7 +56,15 @@ def main(argv=None):
             try:
                 store.create_document_schema()
                 if args.command=="inspect":
-                    result=run_process(store,"SECOP "+args.platform,args.reference,max_documents=args.documents,use_ocr=args.ocr)
+                    result=run_process(store,"SECOP "+args.platform,args.reference,max_documents=args.documents,
+                                       use_ocr=args.ocr,max_pages_per_document=args.pages)
+                elif args.command=="work-queue":
+                    result=work_queue(store,max_documents=args.documents,max_pages_per_document=args.pages,
+                                      max_seconds=args.seconds,use_ocr=args.ocr)
+                elif args.command=="status":
+                    result=store.overview()
+                elif args.command=="catalogue":
+                    result=catalogue_process(store,"SECOP "+args.platform,args.reference,use_ocr=args.ocr)
                 elif args.command=="seed-secop-i":
                     result=seed_plural(store,dataset=args.dataset,partition=args.partition,limit=args.processes)
                 else:

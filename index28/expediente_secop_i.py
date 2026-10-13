@@ -6,6 +6,7 @@ consorcio ni que el estado publicado demuestre ejecucion actual.
 from __future__ import annotations
 
 from typing import Callable
+from urllib.parse import urlsplit
 from index28.socrata import scan_exact, fetch_json, VALID_CONSTANCIA
 from index28.secop_i_inventory import official_https_url
 
@@ -81,6 +82,13 @@ def expediente(constancia: str, fetch: Callable[[str], list[dict]] = fetch_json,
             if not ident or ident in ids:
                 continue
             ids.add(ident)
+            route=row.get("ruta_descarga")
+            route=route.get("url") if isinstance(route,dict) else route
+            route=str(route or "")[:2000]
+            try:
+                transport=urlsplit(route).scheme if route else ""
+            except ValueError:
+                transport="invalid"
             docs.append({"id": ident, "name": _real(row.get("nombrearchivo")),
                          "description": _real(row.get("descripcion")),
                          "created_at": _real(row.get("fecha_creacion")),
@@ -88,6 +96,8 @@ def expediente(constancia: str, fetch: Callable[[str], list[dict]] = fetch_json,
                          "metadata_version": _real(row.get("version")),
                          "extension": _real(row.get("extension")),
                          "download_url_published": official_https_url(row.get("ruta_descarga")),
+                         "published_download_route":route,
+                         "download_transport_reported":transport,
                          "source": ds, "evidence_status": "metadatos_sin_lectura",
                          "source_url": f"https://www.datos.gov.co/d/{ds}",
                          "safe_public_download_verified": False})

@@ -1,6 +1,6 @@
 # SECOP Consulta Mixta — desarrollo controlado posterior a 2.10
 
-**Estado:** conectores, cola documental persistente, descubrimiento de expedientes, OCR opcional y conciliación desarrollados y verificados en rama independiente; no integrados a la web. Detalle y reproducción en `DESARROLLO_211_CONTINUACION.md` y `VALIDACION_211.json`.
+**Estado:** conectores, cola documental persistente, descubrimiento de expedientes, OCR opcional y conciliación desarrollados y verificados en rama independiente; no integrados a la web. La revisión 2.11-r2 incorpora reanudación por página, pausas de fuente y API de evidencia del piloto. Detalle inicial en `DESARROLLO_211_CONTINUACION.md`; avance y verificación actuales en `CONTINUACION_211_R2.md` y `VALIDACION_211_R2.json`. SECOP I sigue bloqueado por 403 en los ensayos reales.
 
 ## Regla de congelamiento
 

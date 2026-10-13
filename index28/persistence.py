@@ -13,6 +13,7 @@ import uuid
 
 from index27.store import Store, UTC, normalize_nit, validated_url
 from index28.socrata import VALID_CONSTANCIA, VALID_PORTFOLIO
+from index28.reading_progress import merge as merge_reading,retryable_pages
 
 DDL = (
     """CREATE TABLE IF NOT EXISTS index_doc_jobs (
@@ -35,6 +36,15 @@ DDL = (
     """CREATE TABLE IF NOT EXISTS index_doc_inventories (
       inventory_key TEXT PRIMARY KEY, platform TEXT NOT NULL, process_ref TEXT NOT NULL,
       snapshot_json TEXT NOT NULL, checked_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS index_doc_result_versions (
+      version_key TEXT PRIMARY KEY, job_key TEXT NOT NULL REFERENCES index_doc_jobs(job_key),
+      result_json TEXT NOT NULL, checked_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS index_doc_access_state (
+      platform TEXT NOT NULL, process_ref TEXT NOT NULL, error_code TEXT NOT NULL,
+      next_retry BIGINT NOT NULL, checked_at TEXT NOT NULL,
+      PRIMARY KEY(platform,process_ref)
     )""",
     "CREATE INDEX IF NOT EXISTS ix_doc_queue ON index_doc_jobs(status,next_attempt,priority)",
     "CREATE INDEX IF NOT EXISTS ix_doc_identification ON index_doc_observations(id_type,identification)",
@@ -134,18 +144,24 @@ class DocumentStore(Store):
         return row
 
     def claim(self, key: str, *, now: int | None = None, lease_seconds: int = 180,
-              max_attempts: int = 3) -> dict | None:
+              max_attempts: int = 3, resume_partial: bool = False) -> dict | None:
         if not 30 <= lease_seconds <= 600 or not 1 <= max_attempts <= 10:
             raise ValueError("Limites de ejecucion invalidos")
         clock = int(time.time()) if now is None else int(now)
+        if resume_partial:
+            previous=self.result(key)
+            if not previous or not retryable_pages(previous):
+                return None
         token = uuid.uuid4().hex
         with self.atomic():
             # Compare-and-set evita que dos workers reclamen el mismo documento.
             rows = self.rows("""UPDATE index_doc_jobs SET status='working',attempts=attempts+1,
               lease_token=%s,lease_until=%s,updated_at=%s WHERE job_key=%s
-              AND attempts < %s AND next_attempt <= %s
-              AND (status IN ('pending','failed') OR (status='working' AND lease_until <= %s))
-              RETURNING job_key""", (token,clock+lease_seconds,UTC(),key,max_attempts,clock,clock))
+              AND next_attempt <= %s
+              AND ((attempts < %s AND (status IN ('pending','failed')
+                    OR (status='blocked' AND last_error='http_403') OR (status='working' AND lease_until <= %s)))
+                   OR (status='partial' AND attempts < 64 AND %s=1))
+              RETURNING job_key""", (token,clock+lease_seconds,UTC(),key,clock,max_attempts,clock,int(resume_partial)))
         if not rows:
             return None
         return self.job(key)
@@ -156,6 +172,8 @@ class DocumentStore(Store):
             raise ValueError("Falta huella de documento examinado")
         if result.get("binary_persisted") is not False:
             raise ValueError("Resultado debe excluir los bytes originales")
+        previous=self.result(key)
+        result=merge_reading(previous,result)
         encoded = _dump(result)
         if len(encoded.encode()) > 2_000_000:
             raise ValueError("Resultado documental excesivo")
@@ -168,8 +186,13 @@ class DocumentStore(Store):
                 RETURNING job_key""",(status,UTC(),key,token))
             if not rows:
                 raise ValueError("El trabajo ya no pertenece a este worker")
+            # Auditoria aditiva: el resultado anterior permanece recuperable.
+            for version in [v for v in [previous,result] if v]:
+                self.execute("""INSERT INTO index_doc_result_versions VALUES (%s,%s,%s,%s)
+                  ON CONFLICT(version_key) DO NOTHING""",(digest([key,version]),key,_dump(version),UTC()))
             self.execute("""INSERT INTO index_doc_results VALUES (%s,%s,%s,%s)
-                ON CONFLICT(job_key) DO NOTHING""",(key,sha,encoded,UTC()))
+                ON CONFLICT(job_key) DO UPDATE SET document_sha256=excluded.document_sha256,
+                  result_json=excluded.result_json,checked_at=excluded.checked_at""",(key,sha,encoded,UTC()))
             for kind, hint in observations:
                 id_type = hint.get("id_type","NIT")
                 raw = hint.get("identification") or hint.get("nit")
@@ -189,7 +212,7 @@ class DocumentStore(Store):
              now: int | None = None):
         # Solo codigos internos: nunca guardar respuestas completas, claves o cookies.
         if error_code not in {"http_403","http_404","http_429","http_error","download_unavailable",
-                              "invalid_link","invalid_pdf","reader_failed","metadata_only"}:
+                              "invalid_link","invalid_pdf","reader_failed","metadata_only","document_changed"}:
             raise ValueError("Codigo de incidente desconocido")
         job = self.job(key)
         clock = int(time.time()) if now is None else int(now)
@@ -224,3 +247,55 @@ class DocumentStore(Store):
     def queue_status(self, keys: list[str]) -> list[dict]:
         return [{k:r[k] for k in ("job_key","document_id","status","attempts","last_error","updated_at")}
                 for key in keys for r in [self.job(key)]]
+
+    def source_block(self,platform: str,reference: str,*,now: int | None=None) -> dict | None:
+        clock=int(time.time()) if now is None else int(now)
+        rows=self.rows("""SELECT * FROM index_doc_access_state WHERE platform=%s
+          AND (process_ref=%s OR process_ref='*') AND next_retry>%s
+          ORDER BY next_retry DESC""",(platform,reference,clock))
+        return rows[0] if rows else None
+
+    def defer_source(self,platform: str,reference: str,error_code: str,*,now: int | None=None):
+        self._reference(platform,reference)
+        if error_code!="http_403":
+            raise ValueError("Incidente de fuente no admitido")
+        # El portal SECOP I se enfria tras el 403 para evitar solicitudes en
+        # cadena. SECOP II solo pausa el expediente afectado.
+        partition="*" if platform=="SECOP I" else reference
+        clock=int(time.time()) if now is None else int(now)
+        with self.atomic():
+            self.execute("""INSERT INTO index_doc_access_state VALUES (%s,%s,%s,%s,%s)
+              ON CONFLICT(platform,process_ref) DO UPDATE SET error_code=excluded.error_code,
+              next_retry=excluded.next_retry,checked_at=excluded.checked_at""",
+              (platform,partition,error_code,clock+3600,UTC()))
+
+    def ready_jobs(self,limit: int=20,*,now: int | None=None) -> list[str]:
+        if not 1<=limit<=100:
+            raise ValueError("Limite de cola invalido")
+        clock=int(time.time()) if now is None else int(now)
+        rows=self.rows("""SELECT j.job_key,j.status FROM index_doc_jobs j
+          WHERE j.next_attempt<=%s
+            AND ((j.attempts<3 AND (j.status IN ('pending','failed')
+                  OR (j.status='blocked' AND j.last_error='http_403') OR (j.status='working' AND j.lease_until<=%s)))
+                 OR (j.status='partial' AND j.attempts<64))
+            AND NOT EXISTS (SELECT 1 FROM index_doc_access_state a WHERE a.platform=j.platform
+              AND (a.process_ref=j.process_ref OR a.process_ref='*') AND a.next_retry>%s)
+          ORDER BY j.priority,j.created_at,j.job_key LIMIT %s""",(clock,clock,clock,min(1000,limit*10)))
+        accepted=[]
+        for row in rows:
+            if row["status"]=="partial" and not retryable_pages(self.result(row["job_key"]) or {}):
+                continue
+            accepted.append(row["job_key"])
+            if len(accepted)==limit:break
+        return accepted
+
+    def overview(self) -> dict:
+        states=self.rows("SELECT platform,status,count(*) AS n FROM index_doc_jobs GROUP BY platform,status ORDER BY platform,status")
+        originals=self.rows("""SELECT count(*) AS n FROM
+          (SELECT platform,process_ref,document_id FROM index_doc_jobs GROUP BY platform,process_ref,document_id) x""")[0]["n"]
+        sources=self.rows("SELECT platform,process_ref,error_code,next_retry,checked_at FROM index_doc_access_state")
+        observations=self.rows("SELECT count(*) AS n FROM index_doc_observations")[0]["n"]
+        return {"document_count":originals,"job_revision_count":sum(r["n"] for r in states),
+                "states":states,"source_incidents":sources,"observation_count":observations,
+                "documents_stored":0,"national_coverage":False,
+                "absence_of_contracts_certified":False}
