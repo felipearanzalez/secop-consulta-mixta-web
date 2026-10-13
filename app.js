@@ -367,7 +367,7 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
   `<section class="panel" id="candidateSection"><div class="section-label">05 / Candidatos con contratos</div><h2>Contratos de estructuras parecidas, pendientes de comprobar</h2><p class="hint">Coincidencias de denominación plural o representante, vinculadas además a un contrato identificado. No se atribuyen al consultado sin acreditar composición.</p><div class="bucket-grid">${['I','II'].map(p=>`<section class="bucket"><header><strong>SECOP ${p} · Estructuras plurales</strong><span class="bucket-count" id="candidate${p}pluralCount">0</span></header><div id="candidate${p}plural" class="results"></div></section>`).join('')}</div></section>`;
   const trace=$('trace');trace.insertAdjacentHTML('beforebegin',newSections);
   $('trace').querySelector('.section-label').textContent='06 / Fuentes y cobertura';
-  document.querySelector('.mast-tag').textContent='Consulta pública · Versión 2.7 (índice documental piloto)';
+  document.querySelector('.mast-tag').textContent='Consulta pública · Versión 2.8 (orden contractual restaurado)';
   document.querySelector('.mast h1').textContent='Contratos y participación por NIT';
   document.querySelector('.mast p').textContent='Primero ejecución, luego contratos, participaciones y candidatos respaldados por contratos. Información verificable en SECOP.';
  }
@@ -427,7 +427,7 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
    }catch(err){p.tasks.push({source:'p6dx-8zbt / hgi6-6wh3',label:'Cobertura adicional SECOP II',status:'failed',count:0,error:String(err.message||err),truncated:false});}
    reportUI(report,core,'Consulta finalizada. Consulte cobertura e incidencias; procesos sin contrato acreditado se informan por separado.');
    const issues=p.tasks.filter(t=>t.status!=='ok');
-   update(`Consulta finalizada: ${report.execution.length} en ejecución reportada/posible; ${report.contracts.length} otros contratos; ${report.candidates.length} candidatos con contrato; ${latest.extended?.awards.length||0} adjudicaciones adicionales sin contrato electrónico asociado. ${issues.length} operaciones con incidencia.`,issues.length?'problem':'done');
+   update(`Consulta ${issues.length?'con cobertura parcial':'completada'}: ${report.execution.length} contratos con ejecución reportada/posible en datos estructurados; ${report.contracts.length} otros contratos en datos estructurados; ${report.candidates.length} candidatos sin pertenencia acreditada; ${latest.extended?.awards.length||0} adjudicaciones adicionales sin contrato electrónico. ${issues.length} operaciones con incidencia. Revise también los contratos documentales en el apartado 03A.`,issues.length?'problem':'done');
    $('download').disabled=false;
   }catch(e){update('Consulta interrumpida: '+(e.message||e),'problem')}finally{btn.disabled=false}
  },true);
@@ -602,8 +602,11 @@ root.SecopExtended26=API;
  const form=document.getElementById('searchForm'), input=document.getElementById('identifier'), kind=document.getElementById('kind');
  if(!form||!input)return;
  const panel=document.createElement('section');panel.id='documentIndex27';panel.className='panel documentary-index';panel.hidden=true;
- panel.innerHTML='<div class="index-line"><div><div class="section-label">Indice documental de fuentes verificables</div><h2>Contratos encontrados en documentos</h2></div><span class="index-note">Sin archivos almacenados</span></div><p class="hint">Complemento a SECOP I y II. Registra integrantes acreditados en documentos y sus enlaces. No certifica ejecucion vigente ni garantiza cobertura total.</p><div id="index27Status" class="context" role="status" aria-live="polite">Sin consulta.</div><div id="index27Records" class="index27-records"></div>';
- const metrics=document.querySelector('section.metrics');if(metrics)metrics.insertAdjacentElement('beforebegin',panel);else form.insertAdjacentElement('afterend',panel);
+ panel.innerHTML='<div class="index-line"><div><div class="section-label">03A / Contratación acreditada documentalmente</div><h2>Contratos adicionales encontrados en documentos</h2></div><span class="index-note">Sin archivos almacenados</span></div><p class="hint">Contratos acreditados mediante contrato suscrito y documento de conformacion plural, aunque no aparezcan vinculados al NIT en los conjuntos estructurados. No son indicios de ejecucion actual.</p><div id="index27Status" class="context" role="status" aria-live="polite">Sin consulta.</div><div id="index27Records" class="index27-records"></div>';
+ // Preserve the agreed reading order: execution, SECOP contracts, documentary contracts, memberships, candidates.
+ const formalContracts=document.getElementById('contractSection');
+ if(formalContracts)formalContracts.insertAdjacentElement('afterend',panel);
+ else {const metrics=document.querySelector('section.metrics');if(metrics)metrics.insertAdjacentElement('afterend',panel);else form.insertAdjacentElement('afterend',panel);}
  const status=document.getElementById('index27Status'), list=document.getElementById('index27Records');
  let requestId=0;
  const text=(node,v)=>{node.textContent=v==null?'':String(v);return node};
@@ -615,14 +618,16 @@ root.SecopExtended26=API;
   const top=node('div','index27-top');top.append(node('span','tag blue','Contrato documental'),node('span','tag','Participacion plural '+r.share_percent+' %'));article.append(top);
   article.append(node('h3','',r.contractor||'Estructura plural'),node('div','index27-id',(r.contract_ref||'Contrato')+' · '+(r.entity_name||'Entidad no publicada')));
   article.append(node('p','index27-detail',(r.member_name||'Integrante')+' · NIT '+r.member_nit));
-  article.append(node('p','index27-detail','Contrato firmado: '+(r.sign_date||'fecha no registrada')+' · Ejecucion actual: sin verificar'));
+  article.append(node('p','index27-detail','Valor contractual: '+(Number.isFinite(Number(r.contract_value_cop)) ? new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(r.contract_value_cop)) : 'No publicado')));
+  article.append(node('p','index27-detail','Fecha de firma: '+(r.sign_date||'No publicada')+' · Inicio de ejecucion: '+(r.execution_start_date||'No acreditado')+' · Fin de ejecucion: '+(r.execution_end_date||'No acreditado')));
+  article.append(node('p','index27-detail','Estado documental: contrato firmado; ejecucion vigente sin verificar'));
   const foot=node('div','index27-links');const root=safeLink(r.process_url,'Expediente');if(root)foot.append(root);
   for(const e of r.sources||[]){if(['contrato_firmado','composicion_plural'].includes(e.kind)){let a=safeLink(e.url,e.kind==='contrato_firmado'?'Contrato firmado':'Prueba de integrantes');if(a)foot.append(a)}}
   article.append(foot);return article;
  }
  function render(data){list.replaceChildren();const records=data.contracts||[];
-  if(records.length){status.textContent=records.length+' hallazgo(s) documentales asociados al NIT. Cada vinculo contiene evidencia; no prueba ejecucion actual.';records.forEach(x=>list.append(card(x)))}
-  else status.textContent='Sin contratos documentales indexados para este NIT. Indice piloto, cobertura todavia incompleta.';
+  if(records.length){status.textContent=records.length+' contrato(s) adicionales acreditados con documentos para este NIT; no confundir con ejecucion vigente. Las categorias SECOP I y II anteriores solo cuentan registros estructurados.';records.forEach(x=>list.append(card(x)))}
+  else status.textContent='Sin contratos documentales adicionales indexados para este NIT. Cobertura piloto incompleta: no significa ausencia de contratos.';
   const hints=data.indicators||[];if(hints.length){let detail=node('details','index27-indicators');let summary=node('summary','',hints.length+' menciones de NIT sin verificar (no son contratos)');detail.append(summary);
    for(const h of hints.slice(0,12)){let line=node('div','index27-hint',h.source+' · '+h.process_ref+' · pagina '+h.document_page+' · ');let a=safeLink(h.document_url,'Ver fuente');if(a)line.append(a);detail.append(line)}list.append(detail)}
  }
