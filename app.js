@@ -46,7 +46,7 @@ function contractIUrl(row){const c=txt(row.numero_de_constancia);if(/^\d{2}-\d+-
 function safeOfficialUrl(u){try{let v=new URL(txt(u));if(!['http:','https:'].includes(v.protocol))return '';if(!/(^|\.)(datos\.gov\.co|contratos\.gov\.co|secop\.gov\.co|colombiacompra\.gov\.co)$/.test(v.hostname.toLowerCase()))return '';return v.href}catch{return ''}}
 function stateText(platform,state){const s=norm(state);if(s.includes('EJECUC')||s==='INEXECUTION')return 'Ejecución reportada; verificar documentos';if(s.includes('SUSPEND'))return 'Suspensión reportada; revisar';if(s.includes('TERMIN')||s.includes('LIQUID')||s.includes('CERRAD'))return 'Cierre o terminación reportada; revisar';return platform==='I'?'Estado de proceso, no de vigencia':'Vigencia no acreditada por el estado';}
 function matchUrlStatus(v){if(!valid(v))return 'Sin dato publicado';const q=norm(v);if(['SI','SÍ','TRUE','1','YES'].includes(q))return 'Activo en directorio';if(['NO','FALSE','0'].includes(q))return 'Inactivo en directorio';return 'Valor publicado: '+v}
-function rowKey(platform,row){return platform==='II'?'II|'+txt(row.id_contrato||row.referencia_del_contrato||row.urlproceso):'I|'+txt(row.numero_de_constancia)+'|'+txt(row.id_adjudicacion)+'|'+txt(row.numero_de_contrato)+'|'+txt(row.nit_de_la_entidad)}
+function rowKey(platform,row){if(platform==='II')return 'II|'+txt(row.id_contrato||row.referencia_del_contrato||row.urlproceso);return 'I|'+txt(row.uid||'')+'|'+txt(row.numero_de_constancia)+'|'+txt(row.id_ajudicacion||row.id_adjudicacion)+'|'+txt(row.numero_del_contrato||row.numero_de_contrato)+'|'+txt(row.nit_de_la_entidad)}
 function selectFields(row,keys){const result={};for(const key of keys)if(row[key]!==undefined)result[key]=row[key];return result}
 function batch(arr,n=18){const out=[];for(let i=0;i<arr.length;i+=n)out.push(arr.slice(i,i+n));return out}
 function soqlString(v){return "'"+txt(v).replace(/'/g,"''")+"'"}
@@ -86,7 +86,25 @@ class PublicData{
  }
  async schemaSafe(ds){try{return await this.schema(ds)}catch{return null}}
 }
-function record(platform,row,route,group=null){const ii=platform==='II';const state=txt(ii?row.estado_contrato:row.estado_del_proceso);return {key:rowKey(platform,row),platform,route,group:group?.name||'',groupCode:group?.code||'',contractor:txt(ii?row.proveedor_adjudicado:row.nom_razon_social_contratista),contractorId:txt(ii?row.documento_proveedor:row.identificacion_del_contratista),reference:txt(ii?row.referencia_del_contrato||row.id_contrato:(valid(row.numero_de_contrato)?row.numero_de_contrato:row.numero_de_constancia)),entity:txt(row.nombre_entidad),state,start:txt(ii?row.fecha_de_inicio_del_contrato:row.fecha_ini_ejec_contrato),end:txt(ii?row.fecha_de_fin_del_contrato:row.fecha_fin_ejec_contrato),object:txt(ii?row.objeto_del_contrato||row.descripcion_del_proceso:row.objeto_del_contrato_a_la_firma||row.objeto_del_contrato_a_la||row.detalle_del_objeto_a_contratar),url:ii?contractIIUrl(row):contractIUrl(row),constancia:txt(row.numero_de_constancia),contractId:txt(row.id_contrato),value:txt(ii?row.valor_del_contrato:row.cuantia_contrato),stateMeaning:stateText(platform,state),source:platform==='II'?DS.contractsII:DS.contractsI,sourceRow:row}}
+function firstReal(...values){return values.find(x=>valid(x))??''}
+function record(platform,row,route,group=null){
+ const ii=platform==='II',state=txt(ii?row.estado_contrato:row.estado_del_proceso);
+ const executionStart=ii?firstReal(row.fecha_de_inicio_de_ejecucion,row.fecha_de_inicio_del_contrato):row.fecha_ini_ejec_contrato;
+ const executionEnd=ii?firstReal(row.fecha_de_fin_de_ejecucion,row.fecha_de_fin_del_contrato):row.fecha_fin_ejec_contrato;
+ const hasExecutionDates=ii&&(valid(row.fecha_de_inicio_de_ejecucion)||valid(row.fecha_de_fin_de_ejecucion));
+ const contractNo=firstReal(row.numero_del_contrato,row.numero_de_contrato);
+ return {key:rowKey(platform,row),platform,route,group:group?.name||'',groupCode:group?.code||'',
+ contractor:txt(ii?row.proveedor_adjudicado:firstReal(row.nom_raz_social_contratista,row.nom_razon_social_contratista)),
+ contractorId:txt(ii?row.documento_proveedor:row.identificacion_del_contratista),
+ reference:txt(ii?firstReal(row.referencia_del_contrato,row.id_contrato):firstReal(contractNo,row.numero_de_constancia)),
+ entity:txt(ii?row.nombre_entidad:firstReal(row.nombre_de_la_entidad,row.nombre_entidad)),state,
+ start:txt(executionStart),end:txt(executionEnd),
+ dateBasis:ii?(hasExecutionDates?'Fechas de ejecución publicadas (con respaldo del plazo del contrato cuando falta un dato)':'Fechas del contrato; ejecución no comprobada'):'Fechas de ejecución del registro SECOP I',
+ object:txt(ii?firstReal(row.objeto_del_contrato,row.descripcion_del_proceso):firstReal(row.objeto_del_contrato_a_la_firma,row.objeto_del_contrato_a_la,row.detalle_del_objeto_a_contratar)),
+ url:ii?contractIIUrl(row):contractIUrl(row),constancia:txt(row.numero_de_constancia),contractId:txt(row.id_contrato),
+ value:txt(ii?row.valor_del_contrato:row.cuantia_contrato),stateMeaning:stateText(platform,state),
+ source:platform==='II'?DS.contractsII:DS.contractsI,sourceRow:row};
+}
 function newGroup(row){return {code:txt(row.codigo_grupo),name:txt(row.nombre_grupo),nit:txt(row.nit_grupo),active:txt(row.esta_activo),type:txt(row.tipo_empresa_grupo),rep:txt(row.nombre_representante_legal_grupo),repId:txt(row.numero_doc_representante_legal_grupo),repType:txt(row.tipo_doc_representante_legal_grupo),created:txt(row.fecha_creacion_grupo),percent:txt(row.participacion),member:txt(row.nombre_participante),memberId:txt(row.nit_participante),source:'ceth-n4bn',composition:[]}}
 function candidateInfo(g,rule,anchor,score){return {code:g.code,name:g.name,nit:g.nit,rep:g.rep,repId:g.repId,active:g.active,type:g.type,rule,anchor,score:score??null,url:groupUrl(g.code),source:DS.groups,disclaimer:'No se ha demostrado pertenencia del proveedor consultado a esta estructura.'}}
 async function discover(id,opts={},transport){
@@ -125,7 +143,7 @@ async function discover(id,opts={},transport){
   for(const ds of [DS.contractsI,...(opts.historical?[DS.historic]:[])]){
    const own=await data.filter(ds,[['identificacion_del_contratista',id.variants]],'SECOP I: contratista por identificación',{limit:1200});
    for(const r of own)if(idMatch(id,r.identificacion_del_contratista)){
-     const nm=norm(r.nom_razon_social_contratista);
+     const nm=norm(firstReal(r.nom_raz_social_contratista,r.nom_razon_social_contratista));
      if(/\b(CONSORCIO|UNION TEMPORAL|U\.T\.|UT\b)/.test(nm)){
        data.tasks.push({source:ds,label:'Registro con NIT consultado y denominación plural: no atribuible sin composición',status:'partial',count:1,error:'El nombre sugiere estructura plural y su identificación coincide con la del consultado; revise el registro original.',truncated:false});
      }else out.individual.push({...record('I',r,'Identificación propia publicada'),source:ds});
@@ -134,8 +152,8 @@ async function discover(id,opts={},transport){
    for(const b of batch(grp,15)){
     const vals=uniq(b.map(x=>x.nit));const found=await data.filter(ds,[['identificacion_del_contratista',vals]],'SECOP I: contratos de NIT de grupos conocidos',{limit:1200});
     for(const r of found){const g=b.find(x=>idStringMatch(x.nit,r.identificacion_del_contratista));if(!g)continue;
-     const s=similarity(g.name,r.nom_razon_social_contratista,'group');
-     if(s>=.83||part(g.name)===part(r.nom_razon_social_contratista))out.plural.push({...record('I',r,'Identificación del grupo coincidente; corroborar composición histórica',g),source:ds});
+     const s=similarity(g.name,firstReal(r.nom_raz_social_contratista,r.nom_razon_social_contratista),'group');
+     if(s>=.83||part(g.name)===part(firstReal(r.nom_raz_social_contratista,r.nom_razon_social_contratista)))out.plural.push({...record('I',r,'Identificación del grupo coincidente; corroborar composición histórica',g),source:ds});
      else data.tasks.push({source:ds,label:'NIT de grupo coincidente con nombre contractual incompatible',status:'partial',count:1,error:'Se excluyó la atribución automática por inconsistencia de identidad del grupo: '+txt(g.name),truncated:false});
     }
    }
@@ -174,12 +192,12 @@ async function discover(id,opts={},transport){
   for(const ds of [DS.contractsI,...(opts.historical?[DS.historic]:[])]){
    for(const group of [...groups.values()].slice(0,12)){
     const seed=bestAnchor(group.name);if(!seed)continue;
-    const raw=await data.contains(ds,'nom_razon_social_contratista',seed,'SECOP I: nombres de contratistas plurales similares',400);
-    for(const row of raw){const score=similarity(group.name,row.nom_razon_social_contratista,'group');const signed=Boolean(/^\d{4}-\d{2}-\d{2}/.test(txt(row.fecha_de_firma_del_contrato)) || (valid(row.numero_de_contrato)&&(/^\d{4}$/.test(txt(row.anno_firma_contrato))||/CELEBRAD|TERMINAD|LIQUIDAD/.test(norm(row.estado_del_proceso))||/^\d{4}-\d{2}-\d{2}/.test(txt(row.fecha_ini_ejec_contrato)))));if(score<.83||!signed)continue;
+    const raw=await data.contains(ds,'nom_raz_social_contratista',seed,'SECOP I: nombres de contratistas plurales similares',400);
+    for(const row of raw){const score=similarity(group.name,firstReal(row.nom_raz_social_contratista,row.nom_razon_social_contratista),'group');const signed=Boolean(/^\d{4}-\d{2}-\d{2}/.test(txt(row.fecha_de_firma_del_contrato)) || (valid(firstReal(row.numero_del_contrato,row.numero_de_contrato))&&(/^\d{4}$/.test(txt(firstReal(row.anno_firma_del_contrato,row.anno_firma_contrato)))||/CELEBRAD|TERMINAD|LIQUIDAD/.test(norm(row.estado_del_proceso))||/^\d{4}-\d{2}-\d{2}/.test(txt(row.fecha_ini_ejec_contrato)))));if(score<.83||!signed)continue;
      const k=ds+'|'+rowKey('I',row);if(candidateCodes.has(k))continue;candidateCodes.add(k);
      const idSame=valid(group.nit)&&idStringMatch(group.nit,row.identificacion_del_contratista);
      if(idSame){continue}
-     out.candidates.push({type:'i_group_similar',name:txt(row.nom_razon_social_contratista),group:group.name,rule:'Denominación similar a un grupo SECOP II del integrante; el NIT contractual no permite confirmar que sea el mismo grupo.',source:ds,url:contractIUrl(row),ref:txt(row.numero_de_contrato||row.numero_de_constancia),score,contract:{...record('I',row,'Denominación parecida a un grupo conocido; sin atribución de participación'),source:ds}});
+     out.candidates.push({type:'i_group_similar',name:txt(firstReal(row.nom_raz_social_contratista,row.nom_razon_social_contratista)),group:group.name,rule:'Denominación similar a un grupo SECOP II del integrante; el NIT contractual no permite confirmar que sea el mismo grupo.',source:ds,url:contractIUrl(row),ref:txt(firstReal(row.numero_del_contrato,row.numero_de_contrato,row.numero_de_constancia)),score,contract:{...record('I',row,'Denominación parecida a un grupo conocido; sin atribución de participación'),source:ds}});
     }
    }
   }
@@ -237,7 +255,7 @@ show('individualResults',report.individual,contractCard,'Sin contratos individua
 $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob([JSON.stringify(last,null,2)],{type:'application/json'});const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download='secop_consulta_'+Date.now()+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)});
 })();
 
-/* SECOP 2.3 — presentación contractual priorizada y verificación amigable.
+/* SECOP 2.4 — clasificación de ejecución y lectura canónica de campos y verificación amigable.
    Extensión no intrusiva sobre SecopWeb 2.2; no realiza cargas documentales. */
 (function(){'use strict';
  if(typeof document==='undefined'||!window.SecopWeb)return;
@@ -245,25 +263,38 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
  const safe=s=>C.attr(s==null?'':String(s));
  const display=v=>C.valid(v)?safe(v):'No publicado';
  const norm=C.norm;
+ const firstReal=(...xs)=>xs.find(C.valid)??'';
  const date=v=>{const s=String(v||'');const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return null;const d=new Date(m[1]+'-'+m[2]+'-'+m[3]+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===m[0]?d:null};
  const day=v=>date(v)?date(v).toISOString().slice(0,10):'No registrada';
- const currentDay=()=>new Date().toISOString().slice(0,10);
+ const currentDay=()=>{const p=Object.fromEntries(new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));return `${p.year}-${p.month}-${p.day}`};
  const link=(url,label)=>{const u=C.safeOfficialUrl(url);return u?`<a href="${safe(u)}" target="_blank" rel="noopener noreferrer">${safe(label)} ↗</a>`:''};
  function isContractI(r){
   const d=r.sourceRow||r;
-  const n=String(d.numero_de_contrato||'').trim(),hasNumber=C.valid(n)&&!/^(SIN|NO)\b/i.test(n);
+  const n=String(firstReal(d.numero_del_contrato,d.numero_de_contrato)).trim(),hasNumber=C.valid(n)&&!/^(SIN|NO)\b/i.test(n);
   const signed=date(d.fecha_de_firma_del_contrato);
-  const year=String(d.anno_firma_contrato||'').trim(),state=norm(d.estado_del_proceso);
+  const year=String(firstReal(d.anno_firma_del_contrato,d.anno_firma_contrato)).trim(),state=norm(d.estado_del_proceso||r.state);
   return Boolean(signed || (hasNumber && (/^(19|20)\d{2}$/.test(year)||/CELEBRAD|LIQUIDAD|TERMINAD/.test(state)||date(d.fecha_ini_ejec_contrato))));
  }
  function isContractII(r){const d=r.sourceRow||r,st=norm(d.estado_contrato||r.state);return Boolean(C.valid(d.id_contrato||r.contractId)&& !/BORRADOR|EN APROBACION|EN FIRMA|PENDIENTE DE FIRMA/.test(st));}
  function executionStatus(r,today=currentDay()){
-  const s=norm(r.state);
-  if(r.platform==='II')return /^EN EJECUCION$|^EN EJECUCION CONTRACTUAL$|^IN EXECUTION$/.test(s)?{level:'reported',text:'En ejecución según estado SECOP II'}:{level:'other',text:'No se acredita ejecución actual con el estado publicado'};
-  if(/SUSPEND|TERMIN|LIQUID|CERRAD|ANULAD|CANCELAD/.test(s))return {level:'other',text:'Revisar estado; no se presume ejecución'};
-  const start=date(r.start),end=date(r.end),now=date(today);
-  if(start&&end&&now&&start<=now&&now<=end)return {level:'possible',text:'Posible ejecución por fechas SECOP I; verificar actas y suspensiones'};
-  return {level:'other',text:'Ejecución no acreditada por las fechas disponibles'};
+  const s=norm(r.state),d=r.sourceRow||r;
+  const now=date(today),start=date(r.start),end=date(r.end);
+  const ended=now&&end&&end<now,notExpired=now&&end&&end>=now;
+  const started=now&&start&&start<=now;
+  const explicitStop=/SUSPEND|TERMIN|LIQUID|CERRAD|ANULAD|CANCELAD|REVOCAD|CADUCAD|RESCIND|RESUELT/.test(s);
+  if(explicitStop)return {level:'other',text:`Estado publicado «${r.state}»: no presumir ejecución, aunque la fecha final figure vigente.`};
+  if(r.platform==='II'&&(/\bEN EJECUCION\b|\bIN EXECUTION\b/.test(s))){
+   return {level:'reported',text:ended?'SECOP II publica «En ejecución», pero la fecha final informada ya pasó: comprobar prórrogas, suspensiones y fecha de corte.':'SECOP II publica estado «En ejecución». Confirmar novedades y soportes contractuales.'};
+  }
+  if(start&&notExpired&&started){
+   return {level:'possible',text:`Plazo publicado vigente (${r.dateBasis||'fechas registradas'}); el estado «${r.state||'no informado'}» no acredita por sí solo ejecución. Corroborar acta de inicio, suspensiones y modificaciones.`};
+  }
+  // Fecha final futura con inicio ausente: es alerta útil, no ejecución acreditada.
+  const signed=date(d.fecha_de_firma_del_contrato||d.fecha_de_firma);
+  if(!start&&notExpired&&signed&&signed<=now){
+   return {level:'possible',text:'Terminación futura y firma anterior a la fecha de consulta, pero falta fecha de inicio de ejecución. Es un indicio, no un contrato en ejecución comprobada.'};
+  }
+  return {level:'other',text:ended?'El plazo registrado terminó; puede existir suspensión o prórroga sin reflejar en la fuente. Revisar expediente.':start&&now&&start>now?'El inicio publicado es futuro; no se presume ejecución actual.':'Falta fecha válida de inicio, terminación o evidencia de ejecución actual.'};
  }
  const unique=xs=>[...new Map(xs.map(x=>[x.key||x.code||x.name+'|'+x.source,x])).values()];
  function summarize(core,indII=[],candidateContracts=[],candidateI=[]){
@@ -293,7 +324,7 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
  function contractCard(r){
   const e=r.execution||executionStatus(r);
   const badge=r.participationReason?'<span class="tag warn">Proceso sin firma acreditada</span>':e.level==='reported'?'<span class="tag strong">Ejecución reportada</span>':e.level==='possible'?'<span class="tag warn">Posible ejecución</span>':'<span class="tag">Contrato registrado</span>';
-  return `<article class="record"><div class="top"><div>${badge}<h3>${display(r.contractor||r.group)}</h3><div class="muted">${display(r.reference)} · ${display(r.entity)}</div></div><div class="role">${safe(r.route)}</div></div><div class="detail-grid"><div><span>Estado publicado</span><strong>${display(r.state)}</strong></div><div><span>Inicio / fin publicados</span><strong>${safe(day(r.start))} / ${safe(day(r.end))}</strong></div><div><span>Identificación del contratista</span><strong>${display(r.contractorId)}</strong></div></div><div class="context ${e.level==='possible'||r.participationReason?'warning':''}">${safe(r.participationReason||e.text)}</div><details><summary>Objeto y fundamento de la vinculación</summary><p class="secondary">${objectText(r.object)}</p><p class="muted">Fuente: ${safe(r.source)}. ${safe(r.route)}. Una fecha proyectada no incorpora necesariamente suspensiones o modificaciones.</p></details><div class="links">${link(r.url,'Ver expediente contractual en SECOP')}${r.groupCode?`<a href="#gruposRegistrados">Ver composición del grupo en esta página ↓</a>`:''}</div></article>`;
+  return `<article class="record"><div class="top"><div>${badge}<h3>${display(r.contractor||r.group)}</h3><div class="muted">${display(r.reference)} · ${display(r.entity)}</div></div><div class="role">${safe(r.route)}</div></div><div class="detail-grid"><div><span>Estado publicado</span><strong>${display(r.state)}</strong></div><div><span>Inicio / fin publicados</span><strong>${safe(day(r.start))} / ${safe(day(r.end))}</strong><small>${safe(r.dateBasis||'Referencia del registro contractual')}</small></div><div><span>Identificación del contratista</span><strong>${display(r.contractorId)}</strong></div></div><div class="context ${e.level==='possible'||r.participationReason?'warning':''}">${safe(r.participationReason||e.text)}</div><details><summary>Objeto y fundamento de la vinculación</summary><p class="secondary">${objectText(r.object)}</p><p class="muted">Fuente: ${safe(r.source)}. ${safe(r.route)}. Una fecha proyectada no incorpora necesariamente suspensiones o modificaciones.</p></details><div class="links">${link(r.url,'Ver expediente contractual en SECOP')}${r.groupCode?`<a href="#gruposRegistrados">Ver composición del grupo en esta página ↓</a>`:''}</div></article>`;
  }
  function compositionHTML(composition){
   const members=composition||[];
@@ -330,13 +361,13 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
   const metrics=document.querySelector('.metrics');metrics.innerHTML=`<div><strong id="countExecution">—</strong><span>Ejecución reportada o posible</span></div><div><strong id="countContracts">—</strong><span>Otros contratos registrados</span></div><div><strong id="countParticipations">—</strong><span>Registros de participación</span></div><div><strong id="countCandidates">—</strong><span>Candidatos con contrato</span></div>`;
   const makeBuckets=(prefix,title,subtitle,baseIndex)=>`<section class="panel" id="${prefix}Section"><div class="section-label">${baseIndex} / Contratación</div><h2>${title}</h2><p class="hint">${subtitle}</p><div class="bucket-grid">${buckets.map(([platform,modality])=>`<section class="bucket"><header><strong>${names[platform]} · ${names[modality]}</strong><span class="bucket-count" id="${prefix+platform+modality+'Count'}">0</span></header><div id="${prefix+platform+modality}" class="results"><div class="empty">Aún sin consulta.</div></div></section>`).join('')}</div></section>`;
   const newSections=`<div class="stage" id="currentStage">Prioridad de resultados: ejecución → contratos → participaciones → candidatos.</div>`+
-  makeBuckets('execution','Contratos con ejecución reportada o posible','SECOP II: estado contractual «En ejecución». SECOP I: posible ejecución según fechas publicadas, sin certeza de vigencia actual. Las suspensiones y modificaciones requieren comprobación.', '02')+
+  makeBuckets('execution','Contratos con ejecución reportada o posible','Se incluyen: (i) estado «En ejecución» en SECOP II, y (ii) indicios de plazo vigente con fechas verificables, aunque la fuente use otra denominación. No se incluyen contratos con estado publicado de suspensión o terminación. Los plazos no acreditan por sí solos ejecución real.', '02')+
   makeBuckets('contract','Otros contratos registrados','Contratos formalizados en las fuentes consultadas sin acreditación suficiente de ejecución actual. No se repiten los del primer apartado.','03')+
   `<section class="panel" id="participationSection"><div class="section-label">04 / Participaciones y cuentas</div><h2>Registros de participación individual y plural</h2><p class="hint">Se distinguen las cuentas de proveedores y grupos, y los procesos sin firma contractual comprobada. Un registro de cuenta no implica adjudicación; SECOP I no identifica necesariamente a todos los oferentes.</p><div class="bucket-grid"><section class="bucket"><header><strong>SECOP I · Individual</strong></header><div class="results" id="participationIndividualI"></div></section><section class="bucket"><header><strong>SECOP I · Plural</strong></header><div class="results" id="participationPluralI"></div></section><section class="bucket" ><header><strong>SECOP II · Individual</strong></header><div class="results" id="participationIndividualII"></div></section><section class="bucket" id="gruposRegistrados"><header><strong>SECOP II · Plural</strong></header><div class="results" id="participationPluralII"></div></section></div></section>`+
   `<section class="panel" id="candidateSection"><div class="section-label">05 / Candidatos con contratos</div><h2>Contratos de estructuras parecidas, pendientes de comprobar</h2><p class="hint">Coincidencias de denominación plural o representante, vinculadas además a un contrato identificado. No se atribuyen al consultado sin acreditar composición.</p><div class="bucket-grid">${['I','II'].map(p=>`<section class="bucket"><header><strong>SECOP ${p} · Estructuras plurales</strong><span class="bucket-count" id="candidate${p}pluralCount">0</span></header><div id="candidate${p}plural" class="results"></div></section>`).join('')}</div></section>`;
   const trace=$('trace');trace.insertAdjacentHTML('beforebegin',newSections);
   $('trace').querySelector('.section-label').textContent='06 / Fuentes y cobertura';
-  document.querySelector('.mast-tag').textContent='Consulta pública · Versión 2.3';
+  document.querySelector('.mast-tag').textContent='Consulta pública · Versión 2.4';
   document.querySelector('.mast h1').textContent='Contratos y participación por NIT';
   document.querySelector('.mast p').textContent='Primero ejecución, luego contratos, participaciones y candidatos respaldados por contratos. Información verificable en SECOP.';
  }
@@ -392,7 +423,7 @@ $('download').addEventListener('click',()=>{if(!last)return;const blob=new Blob(
   }catch(e){update('Consulta interrumpida: '+(e.message||e),'problem')}finally{btn.disabled=false}
  },true);
  // Captura exportación para que se descargue el nuevo informe, no el anterior.
- $('download').addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(!latest)return;const b=new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='secop_verificacion_v23_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)},true);
+ $('download').addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();if(!latest)return;const b=new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='secop_verificacion_v24_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)},true);
  // Utilidades para pruebas automatizadas.
  window.SecopPresentation={isContractI,isContractII,executionStatus,summarize,collectContractCandidates};
 })();
