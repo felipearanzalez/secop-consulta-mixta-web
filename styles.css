@@ -47,3 +47,19 @@
 .index27-indicators{border-top:1px solid #e3e9ed;padding-top:9px;font-size:.87rem}
 .index27-indicators summary{cursor:pointer}
 .index27-hint{padding:6px 0}
+
+/* Voluntary Croma contrast; visually secondary, hidden when not enabled. */
+.croma-settings{margin:12px 0 0;padding:12px 16px;border:1px solid #d8e3e9;border-radius:9px;background:#f8fbfc}
+.croma-settings>summary{font-weight:600;font-size:.91rem;cursor:pointer;color:#22526a}
+.croma-settings .micro{font-size:.78rem;color:#667b8a;line-height:1.5;margin:8px 0}
+.croma-settings .check{display:flex;gap:9px;align-items:center;font-size:.91rem;margin-top:9px}
+.croma-settings .check input{width:16px;height:16px;flex:none}
+.croma-settings #cromaAuthArea{margin-top:12px;border-top:1px solid #dce6eb;padding-top:12px}
+.croma-settings #cromaAuthArea label{display:block;font-size:.84rem;margin-bottom:7px}
+.croma-settings #cromaAccess{width:min(100%,465px);min-height:38px;padding:8px 10px;border:1px solid #b7cad3;border-radius:6px}
+.croma-settings #cromaRun{display:block;margin-top:12px;padding:10px 14px}
+.croma-panel{border-left:3px solid #b6ccd5}
+.croma-panel[hidden],#cromaAuthArea[hidden]{display:none!important}
+.croma-panel .detail-row{font-size:.82rem;color:#42586a;margin-top:7px;overflow-wrap:anywhere}
+.croma-panel .record .croma-source{display:inline-block;margin-top:11px;font-weight:600}
+.croma-panel .bucket{min-width:0}
