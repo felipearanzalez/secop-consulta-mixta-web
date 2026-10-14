@@ -40,7 +40,7 @@ def error_code(exc: Exception) -> str:
 
 
 def execute_job(store: DocumentStore,key: str,*,download_ii=read_pdf_https,
-                html_i=read_process,download_i=read_document,parser=inspect_pdf,
+                html_i=read_process,download_i=read_document,download_portal=None,parser=inspect_pdf,
                 use_ocr: bool=False,max_pages: int=8) -> dict:
     """Procesar o reanudar un trabajo ya existente, sin reinventariar su expediente."""
     if not isinstance(use_ocr,bool) or not 1<=max_pages<=8:
@@ -61,10 +61,16 @@ def execute_job(store: DocumentStore,key: str,*,download_ii=read_pdf_https,
         return {"job_key":key,"attempted":False,"reused":False,"status":job["status"]}
     doc=claimed["document"]
     url=doc.get("download_url_published")
-    public_ref=("https://www.contratos.gov.co/consultas/detalleProceso.do?numConstancia="+reference
+    public_ref=(doc.get("process_url") if platform=="FINDETER" else
+                "https://www.contratos.gov.co/consultas/detalleProceso.do?numConstancia="+reference
                 if platform=="SECOP I" else "https://www.datos.gov.co/resource/dmgg-8hin.json?proceso="+reference)
     try:
-        if platform=="SECOP II":
+        if platform=="FINDETER":
+            from index28.portal import read_portal_pdf,valid_portal_document
+            if not valid_portal_document(url,reference):
+                raise ValueError("invalid_link")
+            payload=(download_portal or read_portal_pdf)(url,reference)
+        elif platform=="SECOP II":
             if not url or not valid_document_uri(url) or parse_qs(urlsplit(url).query).get("DocumentId")!=[job["document_id"]]:
                 raise ValueError("invalid_link")
             payload=download_ii(url)

@@ -1,0 +1,295 @@
+{
+  "checked_at": "2026-10-14T03:56:47.603544+00:00",
+  "version": "2.11-r3",
+  "development_branch": "desarrollo/secop-i-regimen-especial-v211",
+  "parent_commit": "3fceb8ec2fad8dae1c66e4c43c46f4be008aa375",
+  "frozen_baseline": "364acf769ee42024a876a061164708245eda57e4",
+  "production_changed": false,
+  "deployment_performed": false,
+  "unit_validation": {
+    "checked_at": "2026-10-14T03:52:10.114962+00:00",
+    "baseline": "364acf769ee42024a876a061164708245eda57e4",
+    "unit_tests": 79,
+    "failures": 0,
+    "errors": 0,
+    "skipped": [],
+    "checks": [
+      {
+        "command": [
+          "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+          "scripts/verify_frozen.py"
+        ],
+        "exit_code": 0,
+        "stdout": "app.js db84393ee8e5771defaaac8c3cfc8b83428850bcd9d37e84ed55751f85282515 identico_2.10\nindex.html bb71bf0351add2add32e61163a8ebf65c867d0c8e87e112dd5034f1ecb0d9af5 identico_2.10\nstyles.css 5b3e129967a96cc502fd537b23c3773383407a036f59f0c70384f754e59905bb identico_2.10\ncroma_backend.py de91f4f11a9ffd61a463071ce7ae688090d69ae54c2f05f220c17e6f3e43d6e4 identico_2.10\nindex27/api.py 975e9fcde5f3a164d4ee90cc1077c415bf2b8189329be98518eee4059a2bd519 identico_2.10\nindex27/store.py 35a222b529b2f0ace96168a02db4b7f8e88343a1de5356d6326f3b0805b24847 identico_2.10\nindex27/verified_cases.json 97dd28b4eeb67b139df13995b71ccf43d07259bc422d2f5e87f7520c2feff850 identico_2.10\nindex27/worker.py 5206a307dcc3d23de9f19d77eec6b764dc247999d1e83b88d92198948fb054a4 identico_2.10\nrender.yaml fab8d4803807a86181f3ee5668e97ecac2f08449d5458dbde3b399e2c4e222eb identico_2.10",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "node",
+          "--check",
+          "app.js"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "node",
+          "tests/test_nit_900317964.js"
+        ],
+        "exit_code": 0,
+        "stdout": "PASS: NIT 900317964-1 | 354 memberships | 2 II individual | 2 II plural official references recovered after simulated batch HTTP429\nPASS: status Suspendido preserved, dates preserved, partial incidents traced, contracts prioritized before composition",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "node",
+          "tests/test_filter_retry.js"
+        ],
+        "exit_code": 0,
+        "stdout": "PASS: HTTP429 retried; first page preserved when second page fails; task marked partial rather than silent zero",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "node",
+          "--check",
+          "web211/app.js"
+        ],
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "node",
+          "tests/test_review_ui.js"
+        ],
+        "exit_code": 0,
+        "stdout": "PASS: suspendidos y alertas conservados; enlaces no autorizados rechazados",
+        "stderr": ""
+      }
+    ],
+    "passed": true
+  },
+  "postgresql_validation": {
+    "tests_run": 41,
+    "failures": 0,
+    "errors": 0,
+    "exit_code": 0,
+    "driver": "psycopg 3.3.6",
+    "engine": "PostgreSQL WebAssembly / PGlite 0.5.9 / PGlite Socket 0.2.12",
+    "temporary_server_closed": true,
+    "native_postgresql_validated": false
+  },
+  "real_pilot": {
+    "checked_at": "2026-10-14T03:52:03.223485+00:00",
+    "structured_query_checked_at": "2026-10-14T02:52:34.490000+00:00",
+    "mode": "Consulta real guardada del motor 2.10; no se vuelve a consultar todo SECOP",
+    "nit": "900102268",
+    "cutoff": "2026-09-08",
+    "counts": {
+      "contract_records": 42,
+      "suspended": 1,
+      "awards_without_contract": 3,
+      "documentary_files": 2
+    },
+    "checks": {
+      "rentan_90_percent_candidate": true,
+      "findeter_nit_page_88": true,
+      "suspended_3460_retained": true,
+      "award_063_retained": true
+    },
+    "source_errors": [],
+    "catalogues": [
+      {
+        "platform": "SECOP II",
+        "reference": "CO1.BDOS.7805277",
+        "documents_listed": 39,
+        "coverage": [
+          {
+            "dataset": "jbjy-vk9h",
+            "reference": "CO1.BDOS.7805277",
+            "records": 0,
+            "status": "ok",
+            "truncated": false,
+            "error": "",
+            "last_offset": 0
+          },
+          {
+            "dataset": "p6dx-8zbt",
+            "reference": "CO1.BDOS.7805277",
+            "records": 1,
+            "status": "ok",
+            "truncated": false,
+            "error": "",
+            "last_offset": 1
+          },
+          {
+            "dataset": "dmgg-8hin",
+            "reference": "CO1.BDOS.7805277",
+            "records": 39,
+            "status": "ok",
+            "truncated": false,
+            "error": "",
+            "last_offset": 39
+          }
+        ]
+      },
+      {
+        "platform": "FINDETER",
+        "reference": "PAF-INVIAS-O-082-2023",
+        "documents_listed": 20,
+        "coverage": [
+          {
+            "source": "findeter_portal",
+            "status": "ok",
+            "count": 20,
+            "truncated": false,
+            "scope": "Enlaces PDF visibles de esta ficha; no todo el portal"
+          }
+        ]
+      }
+    ],
+    "documents": [
+      {
+        "platform": "FINDETER",
+        "reference": "PAF-INVIAS-O-082-2023",
+        "document_id": "FDT.94919cb203d80aca50a907701930dc9b",
+        "document_name": "informe_definitivo_de_verificacion_de_requisitos_habilitantes.pdf",
+        "sha256": "653551203d1a1c7c30f0b8bf1cc3ed071993bc9ca31c278bcce8444081212e90",
+        "status": "partial",
+        "pages_reported": 121,
+        "pages_read": 1,
+        "selected_pages": [
+          88
+        ],
+        "pending_page_count": 120,
+        "membership_candidates": [],
+        "contract_verified": false,
+        "reader_version": "2.11-r3"
+      },
+      {
+        "platform": "SECOP II",
+        "reference": "CO1.BDOS.7805277",
+        "document_id": "597148931",
+        "document_name": "ACTA DE INICIO SUROESTE FIRMADA.pdf",
+        "sha256": "0cb41c0a4ee982ae8bb34a77c27ff3fcf005a3dc2cc1a0780644dc2c717f615c",
+        "status": "parsed",
+        "pages_reported": 2,
+        "pages_read": 2,
+        "selected_pages": [
+          1,
+          2
+        ],
+        "pending_page_count": 0,
+        "membership_candidates": [
+          {
+            "group": "CONSORCIO MEJORAMIENTO SUROESTE",
+            "member_name": "INGENIERIA TRANSPORTE Y MAQUINARIA S.A.S",
+            "id_type": "NIT",
+            "id_base": "900102268",
+            "share_percent": "90",
+            "page": 1,
+            "verification_status": "candidato_composicion_pendiente_revision",
+            "contract_attribution": false
+          },
+          {
+            "group": "CONSORCIO MEJORAMIENTO SUROESTE",
+            "member_name": "MINOICA INGENIERÍA S.A.S",
+            "id_type": "NIT",
+            "id_base": "901848505",
+            "share_percent": "10",
+            "page": 1,
+            "verification_status": "candidato_composicion_pendiente_revision",
+            "contract_attribution": false
+          }
+        ],
+        "contract_verified": false,
+        "reader_version": "2.11-r3"
+      }
+    ],
+    "coverage": {
+      "document_count": 59,
+      "job_revision_count": 59,
+      "states": [
+        {
+          "platform": "FINDETER",
+          "status": "partial",
+          "n": 1
+        },
+        {
+          "platform": "FINDETER",
+          "status": "pending",
+          "n": 19
+        },
+        {
+          "platform": "SECOP II",
+          "status": "parsed",
+          "n": 1
+        },
+        {
+          "platform": "SECOP II",
+          "status": "pending",
+          "n": 38
+        }
+      ],
+      "source_incidents": [],
+      "observation_count": 7,
+      "documents_stored": 0,
+      "national_coverage": false,
+      "absence_of_contracts_certified": false
+    },
+    "verified_contracts_created": 0,
+    "original_pdf_retained": false
+  },
+  "special_discovery_live": {
+    "portfolio": "CO1.BDOS.10000000",
+    "processes_persisted": 1,
+    "documents_queued": 9,
+    "documents_read": 0,
+    "structured_contracts": 0,
+    "national_coverage": false
+  },
+  "api_smoke": {
+    "http_status": 200,
+    "counts": {
+      "contract_records": 42,
+      "suspended": 1,
+      "awards_without_contract": 3,
+      "documentary_files": 2
+    },
+    "assets": [
+      {
+        "path": "/review/",
+        "status": 200,
+        "bytes": 2337
+      },
+      {
+        "path": "/review/app.js",
+        "status": 200,
+        "bytes": 7422
+      },
+      {
+        "path": "/review/styles.css",
+        "status": 200,
+        "bytes": 2722
+      }
+    ],
+    "export_preserves_original": true,
+    "automatic_contract_promotion": false,
+    "historical_state_assumed": false,
+    "browser_visual_tested": false
+  },
+  "limits": [
+    "Vista experimental local; no esta desplegada en la web 2.10",
+    "Consulta estructurada importada del 14 de octubre de 2026; no se consulto nuevamente todo SECOP",
+    "Pagina 88 de FINDETER leida de forma dirigida; otras 120 pendientes",
+    "Candidaturas de RENTAN y menciones FINDETER requieren revision de contrato y composicion",
+    "La fecha de corte no reconstruye estados historicos ni cesiones",
+    "Acceso documental SECOP I pendiente por 403 en ensayos anteriores; no reensayado aqui",
+    "Sin barrido nacional, programacion automatica ni calculo de capacidad residual",
+    "Sin validacion visual nueva de navegador ni prueba de carga en PostgreSQL nativo"
+  ]
+}

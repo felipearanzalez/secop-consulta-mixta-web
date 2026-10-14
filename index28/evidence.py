@@ -18,6 +18,25 @@ MAX_PAGES = 80
 NIT_PATTERN = re.compile(r"\bN\.?\s*I\.?\s*T\.?\s*[:#\-]?\s*((?:\d[.\s]?){9,10})(?!\d)", re.I)
 
 
+def table_nit_mentions(text: str) -> list[dict]:
+    """Identificaciones en formularios: indicios, sin asignar nombres o porcentajes."""
+    from index28.composition import norm
+    upper=norm(text)
+    if not ("INFORMACION PROPONENTE" in upper and re.search(r"INTEGRANTE\s*\d",upper)
+            and re.search(r"\bNIT\s*\d",upper)):
+        return []
+    pattern=re.compile(r"(?<![\d.,])(?:\d{3}[. ]?\d{3}[. ]?\d{3})\s*[-–]\s*\d(?!\d)")
+    seen=set();out=[]
+    for match in pattern.finditer(text):
+        try:base=normalize_nit(re.sub(r"\s*[-–]\s*","-",match.group()))
+        except ValueError:continue
+        if base in seen:continue
+        seen.add(base)
+        out.append({"nit":base,"excerpt":" ".join(text[max(0,match.start()-90):match.end()+170].split())[:260],
+                    "verification_status":"indicio_tabla_identificacion_no_verificado"})
+    return out
+
+
 def nit_mentions(text: str, *, max_hints: int = 100) -> list[dict]:
     if not isinstance(text,str):
         raise ValueError("Texto documental invalido")
@@ -125,12 +144,12 @@ def parse_pdf(payload: bytes, *, source: str, process_ref: str, process_url: str
         state.update(method=method,characters=len(extracted))
         states.append(state)
         chars += len(extracted)
-        for hint in nit_mentions(extracted):
+        for hint in nit_mentions(extracted)+table_nit_mentions(extracted):
             records.append({"source":source,"process_ref":process_ref,
                             "process_url":process_url,"document_url":document_url,
                             "page":index+1,"nit":hint["nit"],"excerpt":hint["excerpt"],
                             "method":method,
-                            "verification_status":"indicio_no_verificado"})
+                            "verification_status":hint["verification_status"]})
         for candidate in memberships(extracted,index+1,method=method):
             candidates.append({**candidate,"source":source,"process_ref":process_ref,
                                "process_url":process_url,"document_url":document_url})
@@ -142,7 +161,7 @@ def parse_pdf(payload: bytes, *, source: str, process_ref: str, process_url: str
             "membership_candidates":candidates[:500],
             "pages_reported":total,"pages_examined":examined,
             "pages_read":len(read),"page_states":states,"pending_pages":pending,
-            "selected_pages":selection,"reader_version":"2.11-r2",
+            "selected_pages":selection,"reader_version":"2.11-r3",
             "truncated":total>examined or len(records)>=500 or chars>=1_500_000 or len(candidates)>=500,
             "evidence_truncated":len(records)>=500 or chars>=1_500_000 or len(candidates)>=500,
             "unreadable_pages":unreadable,"errors":errors,

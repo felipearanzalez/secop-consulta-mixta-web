@@ -30,12 +30,12 @@ def special_modality(v: object) -> bool:
 
 
 def document_kind(filename: object) -> str:
-    name = _norm(filename)
+    name = _norm(filename).replace("_", " ")
     if re.search(r"CONFORMACION|CONSORCIO|UNION TEMPORAL|INTEGRANTES|PARTICIPACION", name):
         return "posible_composicion"
     if re.search(r"POLIZA|GARANTIA", name):
         return "garantia"
-    if re.search(r"INFORME.*EVALUACION|EVALUACION|INFORME FINAL", name):
+    if re.search(r"INFORME.*EVALUACION|EVALUACION|INFORME FINAL|VERIFICACION.*REQUISITOS.*HABILITANTES", name):
         return "evaluacion"
     if re.search(r"ADJUDICACION|RESOLUCION DE ADJUDICACION", name):
         return "adjudicacion"

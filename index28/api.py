@@ -7,8 +7,10 @@ import json
 from urllib.parse import parse_qs,urlsplit
 
 from index28.persistence import DocumentStore
+from index28.review import ReviewStore
+from pathlib import Path
 
-VERSION="2.11-r2"
+VERSION="2.11-r3"
 ORIGIN="https://secop-consulta-mixta-web.onrender.com"
 
 
@@ -32,6 +34,23 @@ def build_handler(database_url: str,origin: str=ORIGIN):
             store=None
             try:
                 path=urlsplit(self.path)
+                static={"/review":"index.html","/review/":"index.html","/review/app.js":"app.js","/review/styles.css":"styles.css"}
+                if path.path in static:
+                    if path.query:raise ValueError("Ruta sin parametros")
+                    asset=Path(__file__).resolve().parents[1]/"web211"/static[path.path]
+                    body=asset.read_bytes();self.send_response(200)
+                    self.send_header("Content-Type",{".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8"}[asset.suffix])
+                    self.send_header("Content-Length",str(len(body)));self.send_header("X-Content-Type-Options","nosniff")
+                    self.send_header("Content-Security-Policy","default-src 'self'; connect-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'")
+                    self.end_headers();self.wfile.write(body);return
+                if path.path in {"/api/review/search","/api/review/export"}:
+                    params=parse_qs(path.query,keep_blank_values=True,max_num_fields=3)
+                    if set(params)-{"nit","cutoff","limit"} or any(len(params.get(k,[]))!=1 for k in ["nit","cutoff"]) or len(params.get("limit",["200"]))!=1:
+                        raise ValueError("NIT y fecha de corte obligatorios")
+                    store=ReviewStore(database_url)
+                    data=(store.export(params["nit"][0],params["cutoff"][0]) if path.path.endswith("export")
+                          else store.view(params["nit"][0],params["cutoff"][0],int(params.get("limit",["200"])[0])))
+                    self.respond(200,data);return
                 if path.path not in {"/health","/api/documentary/status","/api/documentary/search"}:
                     self.respond(404,{"error":"Ruta inexistente"});return
                 params=parse_qs(path.query,keep_blank_values=True,max_num_fields=3)
@@ -84,8 +103,8 @@ def main(argv=None):
     parser.add_argument("--host",default="127.0.0.1")
     parser.add_argument("--port",type=int,default=10001)
     args=parser.parse_args(argv)
-    store=DocumentStore(args.database)
-    try:store.create_document_schema()
+    store=ReviewStore(args.database)
+    try:store.create_review_schema()
     finally:store.close()
     ThreadingHTTPServer((args.host,args.port),build_handler(args.database)).serve_forever()
 

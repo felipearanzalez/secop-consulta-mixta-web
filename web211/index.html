@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Revisión contractual · SECOP</title><link rel="stylesheet" href="/review/styles.css"></head>
+<body><main>
+<header><p class="eyebrow">SECOP I · SECOP II · Documentos institucionales</p><h1>Revisión contractual</h1><p>Contratos, suspensiones y adjudicaciones en una misma consulta, con sus fuentes y documentos.</p><span class="badge">Vista experimental 2.11</span></header>
+<section class="panel"><form id="search"><label>NIT del integrante<input id="nit" required inputmode="numeric" autocomplete="off" placeholder="900102268-1"></label><label>Fecha de corte<input id="cutoff" type="date" required></label><button id="submit" type="submit">Consultar</button></form><p id="status" role="status" aria-live="polite">Ingrese el NIT y la fecha que necesita contrastar.</p></section>
+<div id="results" hidden>
+<div id="metrics" class="metrics"></div>
+<section class="panel"><div class="section-head"><h2>Contratos registrados</h2><label class="filter"><input id="suspendedOnly" type="checkbox"> Ver solo suspendidos</label></div><p class="hint">Se conservan los estados publicados, incluso cuando el plazo informado terminó. La fecha de corte orienta la revisión; no reconstruye por sí sola el estado histórico.</p><div id="contracts" class="cards"></div></section>
+<section class="panel"><h2>Adjudicaciones por verificar</h2><p class="hint">Adjudicaciones localizadas sin un contrato electrónico enlazado. Requieren examen del contrato y sus novedades.</p><div id="awards" class="cards"></div></section>
+<section class="panel"><h2>Evidencia documental pendiente de revisión</h2><p class="hint">Una mención de NIT puede corresponder a un integrante, otro oferente o un antecedente. Los fragmentos y porcentajes extraídos se muestran para comprobar su relación con el contrato.</p><div id="documents" class="cards"></div></section>
+<section class="panel"><h2>Cobertura e incidencias</h2><div id="coverage"></div><details><summary>Operaciones de la consulta guardada</summary><div id="incidents"></div></details><button id="download" class="secondary" type="button">Descargar contraste y consulta original</button></section>
+</div></main><script src="/review/app.js" defer></script></body></html>

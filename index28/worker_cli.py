@@ -8,6 +8,9 @@ from index28.persistence import DocumentStore
 from index28.pipeline import run_process,work_queue,catalogue_process
 from index28.reconciliation import reconcile,reconcile_export
 from index28.discovery import seed_plural
+from index28.special_discovery import seed_special
+from index28.portal import catalogue_portal
+from index28.review import ReviewStore
 
 
 def main(argv=None):
@@ -41,6 +44,22 @@ def main(argv=None):
     seed.add_argument("--dataset",choices=["f789-7hwg","qddk-cgux"],default="f789-7hwg")
     seed.add_argument("--partition",default="plural_initial")
     seed.add_argument("--processes",type=int,default=3)
+    special=commands.add_parser("seed-special",help="Descubrir regimen especial sin depender del NIT del adjudicatario")
+    special.add_argument("--database",required=True)
+    special.add_argument("--partition",default="special_initial")
+    special.add_argument("--processes",type=int,default=3)
+    special.add_argument("--ocr",action="store_true")
+    portal=commands.add_parser("catalogue-portal",help="Conectar documentos visibles de un expediente FINDETER")
+    portal.add_argument("--database",required=True)
+    portal.add_argument("--reference",required=True)
+    portal.add_argument("--ocr",action="store_true")
+    imported=commands.add_parser("import-query",help="Guardar una consulta 2.10 o captura del motor publicado")
+    imported.add_argument("--database",required=True)
+    imported.add_argument("--file",type=Path,required=True)
+    review=commands.add_parser("review",help="Contrastar todos los registros y evidencia a una fecha de corte")
+    review.add_argument("--database",required=True)
+    review.add_argument("--nit",required=True)
+    review.add_argument("--cutoff",required=True)
     merge=commands.add_parser("reconcile",help="Comparar exportaciones sin escribir en la web")
     merge.add_argument("--baseline",type=Path,required=True,help="JSON con lista de registros 2.10")
     merge.add_argument("--incoming",type=Path,required=True,help="JSON {records,coverage}")
@@ -52,9 +71,9 @@ def main(argv=None):
             result=(reconcile_export(previous,new) if isinstance(previous,dict)
                     else reconcile(previous,new["records"],coverage=new["coverage"]))
         else:
-            store=DocumentStore(args.database)
+            store=ReviewStore(args.database)
             try:
-                store.create_document_schema()
+                store.create_review_schema()
                 if args.command=="inspect":
                     result=run_process(store,"SECOP "+args.platform,args.reference,max_documents=args.documents,
                                        use_ocr=args.ocr,max_pages_per_document=args.pages)
@@ -67,6 +86,14 @@ def main(argv=None):
                     result=catalogue_process(store,"SECOP "+args.platform,args.reference,use_ocr=args.ocr)
                 elif args.command=="seed-secop-i":
                     result=seed_plural(store,dataset=args.dataset,partition=args.partition,limit=args.processes)
+                elif args.command=="seed-special":
+                    result=seed_special(store,partition=args.partition,limit=args.processes,use_ocr=args.ocr)
+                elif args.command=="catalogue-portal":
+                    result=catalogue_portal(store,args.reference,use_ocr=args.ocr)
+                elif args.command=="import-query":
+                    result={"snapshot_key":store.save_snapshot(json.loads(args.file.read_text())),"status":"saved"}
+                elif args.command=="review":
+                    result=store.view(args.nit,args.cutoff)
                 else:
                     result=store.candidates(args.nit)
             finally:
@@ -78,6 +105,7 @@ def main(argv=None):
         return 3
     if args.command=="seed-secop-i" and result["status"]!="ok":
         return 3
+    if args.command=="seed-special" and result["status"]!="ok":return 3
     return 0
 
 

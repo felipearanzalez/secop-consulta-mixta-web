@@ -107,6 +107,11 @@ class DocumentStore(Store):
 
     @staticmethod
     def _reference(platform: str, reference: str):
+        if platform=="FINDETER":
+            import re
+            if not re.fullmatch(r"PAF-[A-Z0-9-]{5,70}",str(reference)):
+                raise ValueError("Referencia institucional invalida")
+            return
         pattern = {"SECOP I": VALID_CONSTANCIA, "SECOP II": VALID_PORTFOLIO}.get(platform)
         if pattern is None or not pattern.fullmatch(str(reference)):
             raise ValueError("Plataforma o referencia documental invalida")
@@ -114,7 +119,8 @@ class DocumentStore(Store):
     def enqueue(self, platform: str, reference: str, document: dict, priority: int) -> str:
         self._reference(platform, reference)
         doc_id = str(document.get("id") or document.get("document_id") or "")
-        if not doc_id.isdecimal() or len(doc_id) > 14 or not 0 <= priority <= 20:
+        valid_id=(doc_id.startswith("FDT.") and len(doc_id)==36 and all(c in "0123456789abcdef" for c in doc_id[4:])) if platform=="FINDETER" else doc_id.isdecimal() and len(doc_id)<=14
+        if not valid_id or not 0 <= priority <= 20:
             raise ValueError("Documento o prioridad invalidos")
         # Dataset actual/historico de un mismo archivo no genera dos trabajos.
         revision = digest([document.get("name") or document.get("filename"),

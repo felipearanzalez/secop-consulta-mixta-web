@@ -28,7 +28,7 @@ def main():
         psycopg.connect=partial(connect,prepare_threshold=None)
     try:
         suite=unittest.TestSuite()
-        for pattern in ["test_document_pipeline.py","test_queue_resume.py"]:
+        for pattern in ["test_document_pipeline.py","test_queue_resume.py","test_phase3_review.py"]:
             suite.addTests(unittest.defaultTestLoader.discover("tests",pattern=pattern))
         result=unittest.TextTestRunner(verbosity=2).run(suite)
         return 0 if result.wasSuccessful() else 1

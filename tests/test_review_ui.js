@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict');const UI=require('../web211/app.js');
+const all={contracts:[{contractId:'CO1.PCCNTR.6644739',state:'Suspendido',cutoff_review:{suspension_reported:true}},{contractId:'CO1.PCCNTR.5151026',state:'En ejecución',cutoff_review:{signature_after_cutoff:true}}]};
+assert.equal(UI.selectedContracts(all,false).length,2);
+assert.equal(UI.selectedContracts(all,true)[0].contractId,'CO1.PCCNTR.6644739');
+assert.deepEqual(UI.contractFlags(all.contracts[1]),['Firma posterior al corte']);
+assert.equal(UI.safeLink('javascript:alert(1)'),null);
+assert.equal(UI.safeLink('https://community.secop.gov.co.evil.test/'),null);
+assert.equal(UI.safeLink('https://user:password@community.secop.gov.co/'),null);
+assert(UI.safeLink('https://community.secop.gov.co/Public/Archive/RetrieveFile/Index?DocumentId=597148931'));
+console.log('PASS: suspendidos y alertas conservados; enlaces no autorizados rechazados');

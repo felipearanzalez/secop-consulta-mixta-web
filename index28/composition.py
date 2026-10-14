@@ -88,8 +88,9 @@ def paragraph_memberships(text: str, page: int, *, method: str) -> list[dict]:
         labels=list(re.finditer(r"\b(CONSORCIO|UNION TEMPORAL)\s+",previous))
         if not labels:
             continue
-        segment=previous[labels[-1].start():]
-        group_text=re.split(r"\bNOMBRE OFERENTE|\bREPRESENTANTE|\bPROPONENTE|\bINFORMACION|\bN\.?I\.?T|[\n|;]",segment,maxsplit=1)[0].strip(" :")
+        # Un salto visual puede separar "CONSORCIO" de su nombre en el PDF.
+        segment=re.sub(r"\s+"," ",previous[labels[-1].start():])
+        group_text=re.split(r"\bNOMBRE OFERENTE|\bREPRESENTANTE|\bPROPONENTE|\bINFORMACION|\bIDENTIFICAD[OA]|\bN\.?I\.?T|[\n|;,]",segment,maxsplit=1)[0].strip(" :")
         if not GROUP.fullmatch(group_text):
             continue
         end=markers[pos+1].start() if pos+1<len(markers) else len(upper)
@@ -97,6 +98,11 @@ def paragraph_memberships(text: str, page: int, *, method: str) -> list[dict]:
         stop=re.search(r"\b(?:INFORME\s+DE\s+EVALUACION|ASPECTOS\s+JURIDICOS|REQUISITOS\s+HABILITANTES|EXPERIENCIA|CONTRATOS APORTADOS|PROPONENTE\s+(?:NO|N[Oº°]|\d))\b",norm(block))
         if stop:
             block=block[:stop.start()]
+        # El cierre de la clausula no pertenece al ultimo integrante. Sin este
+        # corte, una referencia posterior al supervisor borraba su candidatura.
+        close=re.search(r"\b(?:Y\s+QUIEN|QUIENES\s+HAN|QUIEN\s+PARA|SE\s+HA\s+CONVENIDO|EL\s+CONTRATISTA[,;])\b",norm(block))
+        if close:
+            block=block[:close.start()]
         ids=list(LABELED_ID.finditer(block))
         for n,ident in enumerate(ids):
             before=block[ids[n-1].end() if n else 0:ident.start()]
@@ -104,6 +110,7 @@ def paragraph_memberships(text: str, page: int, *, method: str) -> list[dict]:
             # El siguiente nombre queda antes de su NIT, tras el porcentaje anterior.
             if "%" in before:
                 before=before.rsplit("%",1)[-1]
+                before=re.sub(r"^\s*(?:DE\s+PARTICIPACI[ÓO]N\s*)?\)?\s*Y\s+","",before,flags=re.I)
             name=re.sub(r"^\s*\d+[.)]\s*","",before.strip()).strip(" |:;,-\n")
             if not 3<=len(name)<=200 or EXCLUDED.search(norm(name)) or EXCLUDED.search(norm(after)):
                 continue
